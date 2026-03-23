@@ -7,6 +7,28 @@
 #include "io_handler.h"
 #include "math_utils.h"
 
+class Timer {
+public:
+  Timer() : start_time_(std::chrono::high_resolution_clock::now()), last_step_time_(start_time_) {}
+
+  void step(const std::string& step_name) {
+    auto now = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> diff = now - last_step_time_;
+    std::cout << "[Timer] " << step_name << " took " << diff.count() << " seconds.\n";
+    last_step_time_ = now;
+  }
+
+  void total() {
+    auto now = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> diff = now - start_time_;
+    std::cout << "[Timer] Pipeline completed in " << diff.count() << " seconds.\n";
+  }
+
+private:
+  std::chrono::time_point<std::chrono::high_resolution_clock> start_time_;
+  std::chrono::time_point<std::chrono::high_resolution_clock> last_step_time_;
+};
+
 // Basic CLI parser
 std::string get_arg(int argc, char **argv, const std::string &arg,
                     const std::string &default_val = "") {
@@ -41,7 +63,7 @@ int main(int argc, char **argv) {
   std::cout << "Starting FAISS pipeline...\n"
             << "Input path: " << input_path << "\nOutput path: " << output_path
             << "\n";
-  auto start_time = std::chrono::high_resolution_clock::now();
+  Timer timer;
 
   IOHandler io(input_path, in_ds, output_path, out_ds_labels, out_ds_distances,
                batch_size);
@@ -57,18 +79,22 @@ int main(int argc, char **argv) {
   std::cout << "Data: " << num_vectors << " vectors of " << d_in
             << " dimensions.\n";
   std::cout << "Heuristics: nlist=" << nlist << ", nprobe=" << nprobe << "\n";
+  timer.step("Initialization");
 
   IndexBuilder<K> builder(d_in, nlist, nprobe);
 
   std::cout << "Reading sample subset of size " << sample_size << "...\n";
   auto sample_f16 = io.read_sample(sample_size);
   auto sample_f32 = math_utils::convert_f16_to_f32(sample_f16);
+  timer.step("Reading sample subset");
 
   std::cout << "Training PCA on sample...\n";
   builder.train_pca(sample_f32, pca_variance);
+  timer.step("Training PCA");
 
   std::cout << "Building and training index...\n";
   builder.build_and_train_index(sample_f32);
+  timer.step("Building and training index");
 
   std::cout << "Populating index...\n";
   io.reset_read();
@@ -77,9 +103,11 @@ int main(int argc, char **argv) {
     auto batch_f32 = math_utils::convert_f16_to_f32(batch_f16);
     builder.add_batch(num_read, batch_f32);
   }
+  timer.step("Populating index");
 
   std::cout << "Index populated. Creating output datasets...\n";
   io.init_output(num_vectors, K);
+  timer.step("Creating output datasets");
 
   std::cout << "Searching index and writing results...\n";
   io.reset_read();
@@ -93,10 +121,9 @@ int main(int argc, char **argv) {
     }
     io.write_batch(num_read, labels, distances);
   }
+  timer.step("Searching index and writing results");
 
-  auto end_time = std::chrono::high_resolution_clock::now();
-  std::chrono::duration<double> diff = end_time - start_time;
-  std::cout << "Pipeline completed in " << diff.count() << " seconds.\n";
+  timer.total();
 
   return 0;
 }
