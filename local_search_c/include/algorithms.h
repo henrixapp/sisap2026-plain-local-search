@@ -1,86 +1,31 @@
 #pragma once
 
-// Everything here assumes sorted lists
+#include <immintrin.h>
 
-// Computes the union of A and B and stores the result in C.
-static inline int set_union(const int *A, int a, const int *B, int b, int *C)
+static inline int hamming_portable(const uint64_t *a, const uint64_t *b, int n)
 {
-    int i = 0, j = 0, k = 0;
-    while (i < a && j < b)
-    {
-        if (A[i] < B[j])
-        {
-            C[k++] = A[i++];
-        }
-        else if (A[i] > B[j])
-        {
-            C[k++] = B[j++];
-        }
-        else
-        {
-            C[k++] = A[i++];
-            j++;
-        }
-    }
-    while (i < a)
-    {
-        C[k++] = A[i++];
-    }
-    while (j < b)
-    {
-        C[k++] = B[j++];
-    }
-    return k;
+    int c = 0;
+    for (int i = 0; i < n; i++)
+        c += __builtin_popcountll(a[i] ^ b[i]);
+    return c;
 }
 
-// Computes the difference A setminus B and stores the result in C.
-static inline int set_difference(const int *A, int a, const int *B, int b, int *C)
-{
-    int i = 0, j = 0, k = 0;
-    while (i < a && j < b)
-    {
-        if (A[i] < B[j])
-        {
-            C[k++] = A[i++];
-        }
-        else if (A[i] > B[j])
-        {
-            j++;
-        }
-        else
-        {
-            i++;
-            j++;
-        }
-    }
-    while (i < a)
-    {
-        C[k++] = A[i++];
-    }
-    return k;
-}
 
-// Remove any elements that are not in sorted order from A.
-static inline int remove_duplicates(int *A, int a)
+static inline void quantize_1024_fp16_avx2(const uint16_t *input, uint8_t *output)
 {
-    int p = 1;
-    for (int i = 1; i < a; i++)
-    {
-        if (A[i] > A[p - 1])
-        {
-            A[p++] = A[i];
-        }
-    }
-    return p;
-}
+    __m256 zero = _mm256_setzero_ps();
 
-// Test if A is a sorted
-static inline int set_is_sorted(const int *A, int a)
-{
-    for (int i = 0; i < a - 1; i++)
+    // 1024 floats / 8 floats per SIMD register = 128 iterations
+    for (int i = 0; i < 128; i++)
     {
-        if (A[i] >= A[i + 1])
-            return 0;
+        // Load 8 half-precision floats into a 128-bit register
+        __m128i half_v = _mm_loadu_si128((__m128i *)&input[i * 8]);
+
+        // Convert those 8 half-floats to 8 single-precision (32-bit) floats
+        __m256 v = _mm256_cvtph_ps(half_v);
+
+        // Compare and get mask as before
+        __m256 mask = _mm256_cmp_ps(v, zero, _CMP_GT_OQ);
+        output[i] = (uint8_t)_mm256_movemask_ps(mask);
     }
-    return 1;
 }

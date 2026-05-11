@@ -3,10 +3,10 @@ SHELL = /usr/bin/env bash
 CC = h5cc
 
 CFLAGS ?= -O3 -Wall -g
-override CFLAGS += -std=gnu17 -march=native -fopenmp -I include
+override CFLAGS += -std=gnu17 -march=native -fopenmp -lm -I include
 override LDFLAGS += -L bin/
 
-OBJ_SHARED := matrix.o
+OBJ_SHARED := matrix.o knn.o
 
 OBJ_KNN := main.o $(OBJ_SHARED)
 OBJ_KNN := $(addprefix bin/, $(OBJ_KNN))

@@ -3,6 +3,7 @@
 
 #include <stdlib.h>
 #include <immintrin.h>
+#include <math.h>
 
 uint16_t *matrix_load_h5_data(const char *Path, const char *Dataset, int *m, int *n)
 {
@@ -116,4 +117,77 @@ float compute_dot_product(const uint16_t *Matrix, int m, int n, int rowA, int ro
     }
 
     return total_sum;
+}
+
+float rand_gaussian(float mu, float sigma)
+{
+    static float V1, V2, S;
+    static int phase = 0;
+    float X;
+
+    if (phase == 0)
+    {
+        do
+        {
+            float U1 = (float)rand() / RAND_MAX;
+            float U2 = (float)rand() / RAND_MAX;
+            V1 = 2 * U1 - 1;
+            V2 = 2 * U2 - 1;
+            S = V1 * V1 + V2 * V2;
+        } while (S >= 1 || S == 0);
+        X = V1 * sqrt(-2 * log(S) / S);
+    }
+    else
+    {
+        X = V2 * sqrt(-2 * log(S) / S);
+    }
+    phase = 1 - phase;
+    return (X * sigma + mu);
+}
+
+float *compute_random_embedding(const uint16_t *Matrix, int m, int n)
+{
+    const int k = 16;
+
+    float *B = aligned_alloc(32, sizeof(float) * n * k);
+
+    float sigma = 1.0f / sqrtf((float)k);
+    for (int i = 0; i < n * k; i++)
+        B[i] = rand_gaussian(0.0f, sigma);
+
+    float *C = aligned_alloc(32, sizeof(float) * m * k);
+
+#pragma omp parallel for
+    for (size_t i = 0; i < m; i += 2)
+    {
+        __m256 acc00 = _mm256_setzero_ps();
+        __m256 acc01 = _mm256_setzero_ps();
+        __m256 acc10 = _mm256_setzero_ps();
+        __m256 acc11 = _mm256_setzero_ps();
+
+        for (size_t j = 0; j < n; j++)
+        {
+            __m256 b0 = _mm256_load_ps(B + j * k + 0);
+            __m256 b1 = _mm256_load_ps(B + j * k + 8);
+
+            __m256 a0 = _mm256_set1_ps(_cvtsh_ss(Matrix[(i + 0) * n + j]));
+
+            acc00 = _mm256_fmadd_ps(b0, a0, acc00);
+            acc01 = _mm256_fmadd_ps(b1, a0, acc01);
+
+            __m256 a1 = _mm256_set1_ps(_cvtsh_ss(Matrix[(i + 1) * n + j]));
+
+            acc10 = _mm256_fmadd_ps(b0, a1, acc10);
+            acc11 = _mm256_fmadd_ps(b1, a1, acc11);
+        }
+
+        _mm256_store_ps(C + (i + 0) * k + 0, acc00);
+        _mm256_store_ps(C + (i + 0) * k + 8, acc01);
+        _mm256_store_ps(C + (i + 1) * k + 0, acc10);
+        _mm256_store_ps(C + (i + 1) * k + 8, acc11);
+    }
+
+    free(B);
+
+    return C;
 }
