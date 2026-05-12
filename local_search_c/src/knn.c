@@ -15,7 +15,6 @@ KNN *KNN_init(int n, int k, float ref)
     g->V = malloc(sizeof(int) * n * k);
     g->D = malloc(sizeof(int16_t) * n * k);
     g->L = malloc(sizeof(omp_lock_t) * n);
-
     for (int i = 0; i < n * k; i++)
     {
         g->V[i] = n;
@@ -77,14 +76,14 @@ void KNN_greedy_dist1_update(KNN *g, int u, const uint64_t *Matrix, int m, int n
         for (int j = 0; j < g->k; j++)
         {
             int w = g->V[v * g->k + j];
-            if (KNN_contains_neighbor(g, u, w))
-                continue;
+            // if (KNN_contains_neighbor(g, u, w))
+            //     continue;
 
             int d = hamming_portable(Matrix + u * n, Matrix + w * n, n);
-            if (d < g->D[(u * g->k) + (g->k - 1)])
+           // if (d < g->D[(u * g->k) + (g->k - 1)])
                 KNN_insert_safe_min(g, u, w, d);
-            if (d < g->D[(w * g->k) + (g->k - 1)])
-                KNN_insert_safe_min(g, w, u, d);
+             //if (d < g->D[(w * g->k) + (g->k - 1)])
+                 KNN_insert_safe_min(g, w, u, d);
         }
     }
 }

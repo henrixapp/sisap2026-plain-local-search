@@ -1,5 +1,6 @@
 #pragma once
-
+#include <stdint.h>
+#include "algorithms.h"
 #include <stdint.h>
 #include <omp.h>
 
@@ -28,15 +29,18 @@ static inline int KNN_contains_neighbor(KNN *g, int u, int v)
 
 static inline void KNN_insert_safe_min(KNN *g, int u, int v, int16_t d)
 {
-    omp_set_lock(&g->L[u]);
-
     int pos = (u * g->k) + (g->k - 1);
 
-    if (KNN_contains_neighbor(g, u, v) || g->D[pos] <= d)
+    if ( g->D[pos] <= d  )
     {
-        omp_unset_lock(&g->L[u]);
         return;
     }
+    omp_set_lock(&g->L[u]);
+
+    if(KNN_contains_neighbor(g, u, v)){
+    omp_unset_lock(&g->L[u]);
+        
+        return;}
 
     // Finding insertion point (linear scan back)
     while (pos > (u * g->k) && g->D[pos - 1] > d)

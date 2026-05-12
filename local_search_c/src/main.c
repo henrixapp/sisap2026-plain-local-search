@@ -1,3 +1,4 @@
+#include <stdint.h>
 #define _GNU_SOURCE
 
 #include "matrix.h"
@@ -7,15 +8,16 @@
 #include <omp.h>
 #include <stdio.h>
 #include <stdlib.h>
+    const int kEmm = 16;
 
 int compare_alt(const void *a, const void *b, void *c)
 {
     const int x = *(const int *)a;
     const int y = *(const int *)b;
     float *V = (float *)c;
-    if (V[x * 16] < V[y * 16])
+    if (V[x * kEmm] < V[y * kEmm])
         return -1;
-    return V[x * 16] > V[y * 16];
+    return V[x * kEmm] > V[y * kEmm];
 }
 
 int main(int argc, char **argv)
@@ -38,13 +40,13 @@ int main(int argc, char **argv)
     for (int i = 0; i < m; i++)
         quantize_1024_fp16_avx2(Matrix + (size_t)i * n, (uint8_t *)(Matrix_bin + (size_t)i * bn));
 
-    KNN *g = KNN_init(m, 66, n);
+    KNN *g = KNN_init(m, 64, n);
 
     printf("%f\n", KNN_compute_recall(g, KNNs, km, kn, 15));
 
     double t0 = omp_get_wtime();
+    float *X = compute_random_embedding(Matrix, m, n,kEmm);
 
-    float *X = compute_random_embedding(Matrix, m, n);
 
     double t1 = omp_get_wtime();
 
@@ -67,16 +69,13 @@ int main(int argc, char **argv)
             for (int k = j + 1; k < g->n && k < j + dist + 1; k++)
             {
                 int v = O[k];
-                if (KNN_contains_neighbor(g, u, v))
-                    continue;
 
                 int d = hamming_portable(Matrix_bin + (size_t)u * bn, Matrix_bin + (size_t)v * bn, bn);
 
-                if (d < g->D[(u * g->k) + (g->k - 1)])
+         
                     KNN_insert_safe_min(g, u, v, d);
 
-                if (d < g->D[(v * g->k) + (g->k - 1)])
-                    KNN_insert_safe_min(g, v, u, d);
+                     KNN_insert_safe_min(g, v, u, d);
             }
         }
 
@@ -93,7 +92,7 @@ int main(int argc, char **argv)
     {
 #pragma omp parallel
         {
-            int *T = malloc(sizeof(int) * g->k * g->k);
+            int *T = malloc(sizeof(int) * g->k * g->k); //what is that for?
 
 #pragma omp for schedule(dynamic, 256)
             for (int u = 0; u < g->n; u++)

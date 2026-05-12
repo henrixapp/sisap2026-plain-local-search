@@ -145,15 +145,25 @@ float rand_gaussian(float mu, float sigma)
     return (X * sigma + mu);
 }
 
-float *compute_random_embedding(const uint16_t *Matrix, int m, int n)
+float *compute_random_embedding(const uint16_t *Matrix, int m, int n, int k)
 {
-    const int k = 16;
+
 
     float *B = aligned_alloc(32, sizeof(float) * n * k);
 
     float sigma = 1.0f / sqrtf((float)k);
     for (int i = 0; i < n * k; i++)
         B[i] = rand_gaussian(0.0f, sigma);
+    for (int i=0;i<n;i++){
+        float sum = 0;
+        for(int j=0;j<k;j++){
+            sum += B[i*k+j]*B[i*k+j];
+        }
+        sum = sqrtf(sum);
+         for(int j=0;j<k;j++){
+             B[i*k+j]/=sum;
+        }
+    }
 
     float *C = aligned_alloc(32, sizeof(float) * m * k);
 
