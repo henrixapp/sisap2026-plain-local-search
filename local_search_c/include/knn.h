@@ -26,12 +26,19 @@ static inline int KNN_contains_neighbor(KNN *g, int u, int v)
             return 1;
     return 0;
 }
-
+static inline swapper(KNN* g,int pos_a, int pos_b){
+        int D_temp = g->D[pos_a];
+        g->D[pos_a]= g->D[pos_b];
+        g->D[pos_b] = D_temp;
+         int V_temp = g->V[pos_a];
+        g->V[pos_a]= g->V[pos_b];
+        g->V[pos_b] = V_temp;
+}
 static inline void KNN_insert_safe_min(KNN *g, int u, int v, int16_t d)
 {
-    int pos = (u * g->k) + (g->k - 1);
-
-    if ( g->D[pos] <= d  )
+    int pos = (u * g->k); // Implementing max heap
+    int basePos = (u * g->k);
+    if ( g->D[pos] < d  )
     {
         return;
     }
@@ -40,19 +47,42 @@ static inline void KNN_insert_safe_min(KNN *g, int u, int v, int16_t d)
     if(KNN_contains_neighbor(g, u, v)){
     omp_unset_lock(&g->L[u]);
         
-        return;}
-
-    // Finding insertion point (linear scan back)
-    while (pos > (u * g->k) && g->D[pos - 1] > d)
-    {
-        g->D[pos] = g->D[pos - 1];
-        g->V[pos] = g->V[pos - 1];
-        pos--;
+        return;
     }
-
-    // Insert
+    int heapPos =0;
+    // Insert- override max value
     g->D[pos] = d;
     g->V[pos] = v;
+    
+    // Bubble down
+    while(2*heapPos+2<g->k){
+        int left = 2*heapPos+1;
+        int right = 2*heapPos+2;
+        if (g->D[basePos+left]>g->D[basePos+right]){
+            //left larger
+            if(g->D[basePos+left]>d){
+                // have to swap
+                swapper(g,basePos+left,basePos+heapPos);
+                heapPos = left;
+                continue;
+            } else {
+                break;
+            }
+        } else {
+        //right larger
+            if(g->D[basePos+right]>d){
+                // have to swap
+                swapper(g,basePos+right,basePos+heapPos);
+                heapPos = right;
+                continue;
+            } else {
+                break;
+            }
+        }
+    }
+
+
+    
 
     omp_unset_lock(&g->L[u]);
 }
