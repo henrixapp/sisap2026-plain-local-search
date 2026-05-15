@@ -26,7 +26,7 @@ static inline int KNN_contains_neighbor(KNN *g, int u, int v)
             return 1;
     return 0;
 }
-static inline swapper(KNN* g,int pos_a, int pos_b){
+static inline void swapper(KNN* g,int pos_a, int pos_b){
         int D_temp = g->D[pos_a];
         g->D[pos_a]= g->D[pos_b];
         g->D[pos_b] = D_temp;

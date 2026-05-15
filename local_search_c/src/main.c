@@ -1,5 +1,6 @@
-#include <stdint.h>
 #define _GNU_SOURCE
+
+#include <stdint.h>
 
 #include "matrix.h"
 #include "knn.h"
