@@ -2,14 +2,15 @@
 
 #include <stdint.h>
 
-#include "matrix.h"
-#include "knn.h"
 #include "algorithms.h"
+#include "knn.h"
+#include "matrix.h"
 
 #include <omp.h>
 #include <stdio.h>
 #include <stdlib.h>
-    const int kEmm = 16;
+
+const int kEmm = 16;
 
 int compare_alt(const void *a, const void *b, void *c)
 {
@@ -46,8 +47,7 @@ int main(int argc, char **argv)
     printf("%f\n", KNN_compute_recall(g, KNNs, km, kn, 15));
 
     double t0 = omp_get_wtime();
-    float *X = compute_random_embedding(Matrix, m, n,kEmm);
-
+    float *X = compute_random_embedding(Matrix, m, n, kEmm);
 
     double t1 = omp_get_wtime();
 
@@ -73,10 +73,9 @@ int main(int argc, char **argv)
 
                 int d = hamming_portable(Matrix_bin + (size_t)u * bn, Matrix_bin + (size_t)v * bn, bn);
 
-         
-                    KNN_insert_safe_min(g, u, v, d);
+                KNN_insert_safe_min(g, u, v, d);
 
-                     KNN_insert_safe_min(g, v, u, d);
+                KNN_insert_safe_min(g, v, u, d);
             }
         }
 
@@ -93,7 +92,7 @@ int main(int argc, char **argv)
     {
 #pragma omp parallel
         {
-            int *T = malloc(sizeof(int) * g->k * g->k); //what is that for?
+            int *T = malloc(sizeof(int) * g->k * g->k); // what is that for?
 
 #pragma omp for schedule(dynamic, 256)
             for (int u = 0; u < g->n; u++)

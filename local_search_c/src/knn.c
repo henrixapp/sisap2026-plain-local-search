@@ -1,10 +1,10 @@
 #include "knn.h"
 
-#include "matrix.h"
 #include "algorithms.h"
+#include "matrix.h"
 
-#include <stdlib.h>
 #include <assert.h>
+#include <stdlib.h>
 
 KNN *KNN_init(int n, int k, float ref)
 {
@@ -80,10 +80,10 @@ void KNN_greedy_dist1_update(KNN *g, int u, const uint64_t *Matrix, int m, int n
             //     continue;
 
             int d = hamming_portable(Matrix + u * n, Matrix + w * n, n);
-           // if (d < g->D[(u * g->k) + (g->k - 1)])
-                KNN_insert_safe_min(g, u, w, d);
-             //if (d < g->D[(w * g->k) + (g->k - 1)])
-                 KNN_insert_safe_min(g, w, u, d);
+            // if (d < g->D[(u * g->k) + (g->k - 1)])
+            KNN_insert_safe_min(g, u, w, d);
+            // if (d < g->D[(w * g->k) + (g->k - 1)])
+            KNN_insert_safe_min(g, w, u, d);
         }
     }
 }

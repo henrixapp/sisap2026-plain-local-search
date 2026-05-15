@@ -1,9 +1,9 @@
 #include "matrix.h"
 #include "hdf5.h"
 
-#include <stdlib.h>
 #include <immintrin.h>
 #include <math.h>
+#include <stdlib.h>
 
 uint16_t *matrix_load_h5_data(const char *Path, const char *Dataset, int *m, int *n)
 {
@@ -148,20 +148,22 @@ float rand_gaussian(float mu, float sigma)
 float *compute_random_embedding(const uint16_t *Matrix, int m, int n, int k)
 {
 
-
     float *B = aligned_alloc(32, sizeof(float) * n * k);
 
     float sigma = 1.0f / sqrtf((float)k);
     for (int i = 0; i < n * k; i++)
         B[i] = rand_gaussian(0.0f, sigma);
-    for (int i=0;i<n;i++){
+    for (int i = 0; i < n; i++)
+    {
         float sum = 0;
-        for(int j=0;j<k;j++){
-            sum += B[i*k+j]*B[i*k+j];
+        for (int j = 0; j < k; j++)
+        {
+            sum += B[i * k + j] * B[i * k + j];
         }
         sum = sqrtf(sum);
-         for(int j=0;j<k;j++){
-             B[i*k+j]/=sum;
+        for (int j = 0; j < k; j++)
+        {
+            B[i * k + j] /= sum;
         }
     }
 

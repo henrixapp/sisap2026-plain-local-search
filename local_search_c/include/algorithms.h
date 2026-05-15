@@ -10,7 +10,6 @@ static inline int hamming_portable(const uint64_t *a, const uint64_t *b, int n)
     return c;
 }
 
-
 static inline void quantize_1024_fp16_avx2(const uint16_t *input, uint8_t *output)
 {
     __m256 zero = _mm256_setzero_ps();
