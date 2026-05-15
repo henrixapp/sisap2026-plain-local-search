@@ -51,6 +51,21 @@ size_t IOHandler::read_batch(std::vector<half_float::half> &batch_data) {
   return vectors_to_read;
 }
 
+size_t IOHandler::read_batch_int8(std::vector<int8_t> &batch_data) {
+  std::vector<half_float::half> f16_batch;
+  size_t vectors_read = read_batch(f16_batch);
+  if (vectors_read == 0) return 0;
+  
+  batch_data.resize(vectors_read * dimension_);
+  for (size_t i = 0; i < f16_batch.size(); ++i) {
+      float val = static_cast<float>(f16_batch[i]);
+      if (val > 127.0f) val = 127.0f;
+      if (val < -128.0f) val = -128.0f;
+      batch_data[i] = static_cast<int8_t>(val);
+  }
+  return vectors_read;
+}
+
 std::vector<half_float::half> IOHandler::read_sample(size_t sample_size) {
   size_t actual_sample_size = std::min(sample_size, num_vectors_);
   std::vector<half_float::half> result(actual_sample_size * dimension_);

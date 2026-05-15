@@ -1,3 +1,5 @@
+
+#include <stdint.h>
 #define _GNU_SOURCE
 
 #include <stdint.h>
@@ -43,6 +45,7 @@ int main(int argc, char **argv)
         quantize_1024_fp16_avx2(Matrix + (size_t)i * n, (uint8_t *)(Matrix_bin + (size_t)i * bn));
 
     KNN *g = KNN_init(m, 64, n);
+    pidgeonize(g,Matrix_bin,bn*sizeof(uint64_t),bn);
 
     printf("%f\n", KNN_compute_recall(g, KNNs, km, kn, 15));
 
@@ -85,7 +88,8 @@ int main(int argc, char **argv)
     double t2 = omp_get_wtime();
 
     printf("Finished initial sorting and inserts in %lf\n", t2 - t1);
-
+   if (!KNN_validate(g))
+            printf("Error!\n");
     printf("%f\n", KNN_compute_recall(g, KNNs, km, kn, 15));
 
     for (int i = 0; i < 16; i++)
@@ -102,12 +106,14 @@ int main(int argc, char **argv)
 
             free(T);
         }
-
+        for(size_t i=0;i<g->n*g->k;i++){
+            if(g->V[i]>=g->n) g->V[i]-= g->n;
+        }
         if (!KNN_validate(g))
             printf("Error!\n");
 
         float recall = KNN_compute_recall(g, KNNs, km, kn, 15);
-        printf("%f\n", recall);
+        printf("%f %f\n", recall,omp_get_wtime()-t2);
         if (recall > 0.8)
             break;
     }

@@ -29,4 +29,9 @@ int calculate_dynamic_d_out(const std::vector<float> &eigenvalues,
 std::vector<float>
 convert_f16_to_f32(const std::vector<half_float::half> &f16_data);
 
+std::vector<int8_t>
+convert_f16_to_int8(const std::vector<half_float::half> &f16_data);
+
+int32_t dot_product_int8(const int8_t* a, const int8_t* b, size_t d);
+
 } // namespace math_utils

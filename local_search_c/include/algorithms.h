@@ -1,8 +1,9 @@
 #pragma once
-
 #include <immintrin.h>
+#include <stdint.h>
 
-static inline int hamming_portable(const uint64_t *a, const uint64_t *b, int n)
+static inline int hamming_portable(const uint64_t *a, const uint64_t *b,
+                                   int n)
 {
     int c = 0;
     for (int i = 0; i < n; i++)
@@ -10,7 +11,8 @@ static inline int hamming_portable(const uint64_t *a, const uint64_t *b, int n)
     return c;
 }
 
-static inline void quantize_1024_fp16_avx2(const uint16_t *input, uint8_t *output)
+static inline void quantize_1024_fp16_avx2(const uint16_t *input,
+                                           uint8_t *output)
 {
     __m256 zero = _mm256_setzero_ps();
 

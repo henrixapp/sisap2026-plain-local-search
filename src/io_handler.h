@@ -23,6 +23,7 @@ public:
   // Read a batch of f16 vectors
   // Returns the number of vectors successfully read (0 if EOF)
   size_t read_batch(std::vector<half_float::half> &batch_data);
+  size_t read_batch_int8(std::vector<int8_t> &batch_data);
 
   // Read a uniform random sample of vectors
   std::vector<half_float::half> read_sample(size_t sample_size);

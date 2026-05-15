@@ -2,7 +2,7 @@ SHELL = /usr/bin/env bash
 
 CC = h5cc
 
-CFLAGS ?= -O3 -Wall -g
+CFLAGS ?= -O3 -Wall 
 override CFLAGS += -std=gnu17 -march=native -fopenmp -lm -I include
 override LDFLAGS += -L bin/
 
