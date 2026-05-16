@@ -4,6 +4,8 @@
 #include "matrix.h"
 
 #include <assert.h>
+
+#include <stdint.h>
 #include <stdlib.h>
 
 KNN *KNN_init(int n, int k, float ref)
@@ -14,15 +16,18 @@ KNN *KNN_init(int n, int k, float ref)
     g->n = n;
     g->V = malloc(sizeof(int) * n * k);
     g->D = malloc(sizeof(int16_t) * n * k);
+    g->Dmin = malloc(sizeof(int16_t) * n);
+
     g->L = malloc(sizeof(omp_lock_t) * n);
     for (int i = 0; i < n * k; i++)
     {
-        g->V[i] = 2*n;
+        g->V[i] = 2 * n;
         g->D[i] = ref;
     }
 
     for (int i = 0; i < n; i++)
     {
+        g->Dmin[i] = INT16_MAX;
         omp_init_lock(&g->L[i]);
     }
 
@@ -38,7 +43,7 @@ void KNN_free(KNN *g)
     {
         omp_destroy_lock(&g->L[i]);
     }
-
+    free(g->Dmin);
     free(g->L);
 
     free(g);
@@ -60,9 +65,10 @@ int KNN_validate(KNN *g)
             for (int k = j + 1; k < g->k; k++)
             {
                 int v = g->V[i * g->k + k];
-                if (u == v){
+                if (u == v)
+                {
                     error = 1;
-                    printf("%d %d %d %d\n",i, u,v,k);
+                    printf("%d %d %d %d\n", i, u, v, k);
                 }
             }
         }
@@ -72,50 +78,57 @@ int KNN_validate(KNN *g)
 
 void KNN_greedy_dist1_update(KNN *g, int u, const uint64_t *Matrix, int m, int n)
 {
-    int jk =0;
-    int b_change= 1;
-    while (b_change>0){
-b_change =0;
-    for (int i = 1; i <= g->k; i++)
+    int jk = 0;
+    int b_change = 1;
+    while (b_change > 0)
     {
-        
-        int v = g->V[(u+1) * g->k - i];
-        if (v>=g->n ){
-//             omp_set_lock(&g->L[u]);
-//             if( v ==g->V[(u+1) * g->k - i]) {
-//                 g->V[(u+1) * g->k - i] -=g->n;
-//             }
-//   omp_unset_lock(&g->L[u]); 
-          continue;
-        }
-        const int v1 = (v)* g->k;
-        int brought_change = 0;
-        for (int j = 0; j < g->k; j++)
+        b_change = 0;
+        for (int i = 1; i <= g->k; i++)
         {
-            int w = g->V[v1  +j];
-            if(u==w ||w>=2*g->n ){continue;}
-            // if (KNN_contains_neighbor(g, u, w))
-            //     continue;
-            if (w>=g->n){
-                w -= g->n;
-            }
-            int d = hamming_portable(Matrix + u * n, Matrix + w * n, n);
-           // if (d < g->D[(u * g->k) + (g->k - 1)])
-                brought_change += KNN_insert_safe_min(g, u, w, d);
-             //if (d < g->D[(w * g->k) + (g->k - 1)])
-               brought_change +=  KNN_insert_safe_min(g, w, u, d);
-        }
-        b_change += brought_change;
-        if(brought_change==0){
-              omp_set_lock(&g->L[u]);
-            if( v ==g->V[(u+1) * g->k - i]) {
-                g->V[(u+1) * g->k - i] +=g->n;
-            }
-  omp_unset_lock(&g->L[u]); 
 
+            int v = g->V[(u + 1) * g->k - i];
+            if (v >= g->n)
+            {
+                //             omp_set_lock(&g->L[u]);
+                //             if( v ==g->V[(u+1) * g->k - i]) {
+                //                 g->V[(u+1) * g->k - i] -=g->n;
+                //             }
+                //   omp_unset_lock(&g->L[u]);
+                continue;
+            }
+            const int v1 = (v)*g->k;
+            int brought_change = 0;
+            for (int j = 0; j < g->k; j++)
+            {
+                int w = g->V[v1 + j];
+                if (u == w || w >= 2 * g->n)
+                {
+                    continue;
+                }
+                // if (KNN_contains_neighbor(g, u, w))
+                //     continue;
+                if (w >= g->n)
+                {
+                    w -= g->n;
+                }
+                int d = hamming_portable(Matrix + u * n, Matrix + w * n, n);
+                // if (d < g->D[(u * g->k) + (g->k - 1)])
+                brought_change += KNN_insert_safe_min(g, u, w, d);
+                // if (d < g->D[(w * g->k) + (g->k - 1)])
+                brought_change += KNN_insert_safe_min(g, w, u, d);
+            }
+            b_change += brought_change;
+            if (brought_change == 0)
+            {
+                omp_set_lock(&g->L[u]);
+                if (v == g->V[(u + 1) * g->k - i])
+                {
+                    g->V[(u + 1) * g->k - i] += g->n;
+                }
+                omp_unset_lock(&g->L[u]);
+            }
         }
     }
-}
 }
 
 float KNN_compute_recall(KNN *g, const int *KNNs, int m, int n, int k)
@@ -142,5 +155,14 @@ float KNN_compute_recall(KNN *g, const int *KNNs, int m, int n, int k)
             }
         }
     }
+    int16_t ma = INT16_MAX;
+    for (int i = 0; i < g->n; i++)
+    {
+        if (g->Dmin[i] < ma)
+        {
+            ma = g->Dmin[i];
+        }
+    }
+    printf("%d \n", ma);
     return (double)tp / (double)(m * k);
 }
