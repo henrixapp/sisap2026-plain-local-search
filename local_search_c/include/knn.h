@@ -9,8 +9,6 @@ typedef struct KNN_struct
     int k;         // Size of neighborhoods
     int *V;        // List of neighbors (n if empty)
     int16_t *D;    // Sorted dot products between vertices (descending)
-    int16_t *Dmin; // Sorted dot products between vertices (descending)
-
     omp_lock_t *L; // Locks for mutual exclusion
 } KNN;
 
@@ -25,7 +23,7 @@ static inline int KNN_contains_neighbor(KNN *g, int u, int v, int d)
 
     const int z = u * g->k;
     int j = 1;
-    if (g->D[z] < d || (INT16_MAX != g->Dmin[u] && g->Dmin[u] > d))
+    if (u == v || g->D[z] < d)
     {
         return 0;
     }
@@ -65,10 +63,6 @@ static inline int KNN_insert_safe_min(KNN *g, int u, int v, int16_t d)
     }
     int heapPos = 0;
     // Insert- override max value
-    if (g->Dmin[u] > d)
-    {
-        g->Dmin[u] = d;
-    }
     g->D[pos] = d;
     g->V[pos] = v;
 

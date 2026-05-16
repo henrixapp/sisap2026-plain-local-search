@@ -16,7 +16,7 @@ KNN *KNN_init(int n, int k, float ref)
     g->n = n;
     g->V = malloc(sizeof(int) * n * k);
     g->D = malloc(sizeof(int16_t) * n * k);
-    g->Dmin = malloc(sizeof(int16_t) * n);
+    // g->Dmin = malloc(sizeof(int16_t) * n);
 
     g->L = malloc(sizeof(omp_lock_t) * n);
     for (int i = 0; i < n * k; i++)
@@ -27,7 +27,7 @@ KNN *KNN_init(int n, int k, float ref)
 
     for (int i = 0; i < n; i++)
     {
-        g->Dmin[i] = INT16_MAX;
+        // g->Dmin[i] = INT16_MAX;
         omp_init_lock(&g->L[i]);
     }
 
@@ -43,7 +43,7 @@ void KNN_free(KNN *g)
     {
         omp_destroy_lock(&g->L[i]);
     }
-    free(g->Dmin);
+    // free(g->Dmin);
     free(g->L);
 
     free(g);
@@ -155,14 +155,14 @@ float KNN_compute_recall(KNN *g, const int *KNNs, int m, int n, int k)
             }
         }
     }
-    int16_t ma = INT16_MAX;
-    for (int i = 0; i < g->n; i++)
-    {
-        if (g->Dmin[i] < ma)
-        {
-            ma = g->Dmin[i];
-        }
-    }
-    printf("%d \n", ma);
+    // int16_t ma = INT16_MAX;
+    // for (int i = 0; i < g->n; i++)
+    // {
+    //     if (g->Dmin[i] < ma)
+    //     {
+    //         ma = g->Dmin[i];
+    //     }
+    // }
+    // printf("%d \n", ma);
     return (double)tp / (double)(m * k);
 }
