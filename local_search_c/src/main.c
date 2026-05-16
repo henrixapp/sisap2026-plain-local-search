@@ -7,6 +7,7 @@
 #include "algorithms.h"
 #include "knn.h"
 #include "matrix.h"
+#include "tree.h"
 
 #include <omp.h>
 #include <stdio.h>
@@ -45,11 +46,27 @@ int main(int argc, char **argv)
         quantize_1024_fp16_avx2(Matrix + (size_t)i * n, (uint8_t *)(Matrix_bin + (size_t)i * bn));
 
     KNN *g = KNN_init(m, 64, n);
-    pidgeonize(g,Matrix_bin,bn*sizeof(uint64_t),bn);
-
-    printf("%f\n", KNN_compute_recall(g, KNNs, km, kn, 15));
-
+    // pidgeonize(g, Matrix_bin, bn * sizeof(uint64_t), bn);
+    int tree_size = g->n / 4;
+    int *indics = (int *)malloc(sizeof(int) * tree_size);
+    for (int i = 0; i < tree_size; i++)
+    {
+        indics[i] = i * 4;
+    }
     double t0 = omp_get_wtime();
+
+    Node *tree = build_binary_rp_tree(Matrix_bin, indics, tree_size, bn, g->n);
+    printf("BUILD tree %f\n", omp_get_wtime() - t0);
+    printTreeStats(tree);
+    t0 = omp_get_wtime();
+    for (int i = 0; i < 4; i++)
+        init_KNN(g, tree, Matrix_bin, bn);
+    printf("Tree by tree %f\n", omp_get_wtime() - t0);
+
+    free(tree);
+    free(indics);
+    printf("%f\n", KNN_compute_recall(g, KNNs, km, kn, 15));
+    t0 = omp_get_wtime();
     float *X = compute_random_embedding(Matrix, m, n, kEmm);
 
     double t1 = omp_get_wtime();
@@ -88,8 +105,8 @@ int main(int argc, char **argv)
     double t2 = omp_get_wtime();
 
     printf("Finished initial sorting and inserts in %lf\n", t2 - t1);
-   if (!KNN_validate(g))
-            printf("Error!\n");
+    if (!KNN_validate(g))
+        printf("Error!\n");
     printf("%f\n", KNN_compute_recall(g, KNNs, km, kn, 15));
 
     for (int i = 0; i < 16; i++)
@@ -106,14 +123,16 @@ int main(int argc, char **argv)
 
             free(T);
         }
-        for(size_t i=0;i<g->n*g->k;i++){
-            if(g->V[i]>=g->n) g->V[i]-= g->n;
+        for (size_t i = 0; i < g->n * g->k; i++)
+        {
+            if (g->V[i] >= g->n)
+                g->V[i] -= g->n;
         }
         if (!KNN_validate(g))
             printf("Error!\n");
 
         float recall = KNN_compute_recall(g, KNNs, km, kn, 15);
-        printf("%f %f\n", recall,omp_get_wtime()-t2);
+        printf("%f %f\n", recall, omp_get_wtime() - t2);
         if (recall > 0.8)
             break;
     }

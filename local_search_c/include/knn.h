@@ -132,7 +132,7 @@ static void pidgeonize(KNN *g, uint8_t *matrix_bin, size_t bytesPerEntry,
     }
     // insert
     uint16_t words[CHUNKS];
-    for (int u = 0; u < 10 * CHUNKS_MAX; u++)
+    for (int u = 0; u < 16 * CHUNKS_MAX; u++)
     {
         for (int i = 0; i < CHUNKS; i++)
             words[i] = 0;
