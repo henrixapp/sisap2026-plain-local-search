@@ -5,6 +5,7 @@
 #include <stdint.h>
 
 #include "algorithms.h"
+#include "btree.h"
 #include "knn.h"
 #include "matrix.h"
 #include "tree.h"
@@ -47,23 +48,23 @@ int main(int argc, char **argv)
 
     KNN *g = KNN_init(m, 64, n);
     // pidgeonize(g, Matrix_bin, bn * sizeof(uint64_t), bn);
-    int tree_size = g->n / 4;
+    int tree_size = g->n;
     int *indics = (int *)malloc(sizeof(int) * tree_size);
     for (int i = 0; i < tree_size; i++)
     {
-        indics[i] = i * 4;
+        indics[i] = i;
     }
     double t0 = omp_get_wtime();
 
-    Node *tree = build_binary_rp_tree(Matrix_bin, indics, tree_size, bn, g->n);
+    BNode *tree = build_rp_btree(Matrix_bin, indics, tree_size, bn, g->n, 1024);
     printf("BUILD tree %f\n", omp_get_wtime() - t0);
-    printTreeStats(tree);
+    printBTreeStats(tree);
     t0 = omp_get_wtime();
-    for (int i = 0; i < 4; i++)
-        init_KNN(g, tree, Matrix_bin, bn);
+    // for (int i = 0; i < 4; i++)
+    b_tree_init_KNN(g, tree, Matrix_bin, bn);
+    free_btree(tree);
     printf("Tree by tree %f\n", omp_get_wtime() - t0);
 
-    free(tree);
     free(indics);
     printf("%f\n", KNN_compute_recall(g, KNNs, km, kn, 15));
     t0 = omp_get_wtime();

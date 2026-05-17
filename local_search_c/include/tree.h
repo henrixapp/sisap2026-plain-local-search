@@ -8,7 +8,7 @@ typedef struct Node
 
     // --- Internal Node Data ---
     int pivot1_index;
-    int pivot2_index;
+    int d;
     struct Node *left;
     struct Node *right;
 

@@ -16,7 +16,7 @@ Node *create_leaf(int *indices, int num_points)
         node->indices[i] = indices[i];
     }
     node->pivot1_index = 0;
-    node->pivot2_index = 0;
+    node->d = 0;
     node->left = NULL;
     node->right = NULL;
     return node;
@@ -34,6 +34,9 @@ Node *build_binary_rp_tree(uint64_t *data, int *indices, int num_points, int bn,
     int idx1, idx2;
     int k = 0;
     uint64_t *p1, *p2;
+    int passes = 0;
+regen:
+    passes++;
     do
     {
         k++;
@@ -56,27 +59,26 @@ Node *build_binary_rp_tree(uint64_t *data, int *indices, int num_points, int bn,
     // 2. In-place Partitioning
     int left_ptr = 0;
     int right_ptr = num_points - 1;
-
+    int dist2 = hamming_portable(p1, p2, bn);
     while (left_ptr <= right_ptr)
     {
         int dist1 = hamming_portable(data + bn * indices[left_ptr], p1, bn);
-        int dist2 = hamming_portable(data + bn * indices[left_ptr], p2, bn);
 
         int go_left;
         if (dist1 < dist2)
         {
             go_left = 1;
         }
-        else if (dist1 > dist2)
+        else // if (dist1 > dist2)
         {
             go_left = 0;
         }
-        else
-        {
-            // CRITICAL: Random tie-breaking. In discrete binary spaces,
-            // exact ties are very common. Without this, trees become highly unbalanced.
-            go_left = rand() % 2;
-        }
+        // else
+        // {
+        //     // CRITICAL: Random tie-breaking. In discrete binary spaces,
+        //     // exact ties are very common. Without this, trees become highly unbalanced.
+        //     go_left = rand() % 2;
+        // }
 
         if (go_left)
         {
@@ -93,9 +95,9 @@ Node *build_binary_rp_tree(uint64_t *data, int *indices, int num_points, int bn,
     }
 
     // 3. Handle degenerate splits (all points fell on one side due to tie-breaking luck)
-    if (left_ptr == 0 || left_ptr == num_points)
+    if ((left_ptr == 0 || left_ptr == num_points) && passes < 2)
     {
-        return create_leaf(indices, num_points);
+        goto regen;
     }
 
     // 4. Create internal node
@@ -106,7 +108,7 @@ Node *build_binary_rp_tree(uint64_t *data, int *indices, int num_points, int bn,
 
     // Copy the pivots so the tree owns them (safe if underlying data shifts)
     node->pivot1_index = idx1;
-    node->pivot2_index = idx2;
+    node->d = dist2;
 
     // 5. Recurse
     node->left = build_binary_rp_tree(data, indices, left_ptr, bn, all_points_n);
@@ -147,20 +149,19 @@ void init_KNN(KNN *g, Node *tree, uint64_t *data, int bn)
                 break;
             }
             int d1 = hamming_portable(data + ptr->pivot1_index * bn, curr, bn);
-            int d2 = hamming_portable(data + ptr->pivot2_index * bn, curr, bn);
-            if (d1 < d2)
+            if (d1 < ptr->d)
             {
                 ptr = ptr->left;
             }
-            else if (d2 <= d1)
+            else // if (d2 <= d1)
             {
                 ptr = ptr->right;
             }
-            else
-            {
-                ties++;
-                ptr = rand() % 2 ? ptr->left : ptr->right;
-            }
+            // else
+            // {
+            //     ties++;
+            //     ptr = rand() % 2 ? ptr->left : ptr->right;
+            // }
         }
         if (ptr != NULL)
         {
