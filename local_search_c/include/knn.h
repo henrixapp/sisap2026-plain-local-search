@@ -5,9 +5,10 @@
 
 typedef struct KNN_struct
 {
-    int n;         // Number of vertices
-    int k;         // Size of neighborhoods
-    int *V;        // List of neighbors (n if empty)
+    int n;  // Number of vertices
+    int k;  // Size of neighborhoods
+    int *V; // List of neighbors (n if empty)
+    int *gen;
     int16_t *D;    // Sorted dot products between vertices (descending)
     omp_lock_t *L; // Locks for mutual exclusion
 } KNN;
@@ -54,13 +55,14 @@ static inline int KNN_insert_safe_min(KNN *g, int u, int v, int16_t d)
         return 0;
     }
     omp_set_lock(&g->L[u]);
-
     if (KNN_contains_neighbor(g, u, v, d))
     {
         omp_unset_lock(&g->L[u]);
 
         return 0;
     }
+    // g->gen[u]++;
+
     int heapPos = 0;
     // Insert- override max value
     g->D[pos] = d;
@@ -108,6 +110,9 @@ static inline int KNN_insert_safe_min(KNN *g, int u, int v, int16_t d)
 
 void KNN_greedy_dist1_update(KNN *g, int u, const uint64_t *Matrix, int m,
                              int n);
+int KNN_greedy2_dist1_update(KNN *g, int u, const uint64_t *Matrix, int m,
+                             int n);
+void KNN_greedy_dist1_update_fast(KNN *g, int u, const uint64_t *Matrix, int m, int n, int smaller_k);
 
 float KNN_compute_recall(KNN *g, const int *KNNs, int m, int n, int k);
 #define MAX_PIDG 4
