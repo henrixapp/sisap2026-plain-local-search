@@ -7,7 +7,6 @@
 
 #include <stdint.h>
 #include <stdlib.h>
-
 KNN *KNN_init(int n, int k, float ref)
 {
     KNN *g = malloc(sizeof(KNN));
@@ -19,7 +18,7 @@ KNN *KNN_init(int n, int k, float ref)
     g->D = malloc(sizeof(int16_t) * n * k);
     // g->Dmin = malloc(sizeof(int16_t) * n);
 
-    g->L = malloc(sizeof(omp_lock_t) * n);
+    g->L = malloc(sizeof(omp_lock_t) * LOCKS_COUNT);
     for (int i = 0; i < n * k; i++)
     {
         g->V[i] = 2 * n;
@@ -27,7 +26,7 @@ KNN *KNN_init(int n, int k, float ref)
         g->gen[i] = 0;
     }
 
-    for (int i = 0; i < n; i++)
+    for (int i = 0; i < LOCKS_COUNT; i++)
     {
         // g->Dmin[i] = INT16_MAX;
         omp_init_lock(&g->L[i]);
@@ -78,12 +77,12 @@ int KNN_validate(KNN *g)
     return error == 0;
 }
 
-void KNN_greedy_dist1_update(KNN *g, int u, const uint64_t *Matrix, int m, int n)
+void KNN_greedy_dist1_update(KNN *g, int u, const uint64_t *restrict Matrix, int m, int n)
 {
     int jk = 0;
     int b_change = 1;
     int my_gen = 1;
-    const uint64_t *curr = Matrix + n * u;
+    const uint64_t *restrict curr = Matrix + n * u;
     while (b_change > 0)
     {
         my_gen++;
@@ -127,17 +126,17 @@ void KNN_greedy_dist1_update(KNN *g, int u, const uint64_t *Matrix, int m, int n
             b_change += brought_change;
             if (brought_change == 0)
             {
-                omp_set_lock(&g->L[u]);
+                omp_set_lock(&g->L[u % LOCKS_COUNT]);
                 if (v == g->V[(u + 1) * g->k - i])
                 {
                     g->V[(u + 1) * g->k - i] += g->n;
                 }
-                omp_unset_lock(&g->L[u]);
+                omp_unset_lock(&g->L[u % LOCKS_COUNT]);
             }
         }
     }
 }
-void KNN_greedy_dist1_update_fast(KNN *g, int u, const uint64_t *Matrix, int m, int n, int smaller_k)
+void KNN_greedy_dist1_update_fast(KNN *g, int u, const uint64_t *restrict Matrix, int m, int n, int smaller_k)
 {
     int jk = 0;
     int b_change = 1;
@@ -184,17 +183,17 @@ void KNN_greedy_dist1_update_fast(KNN *g, int u, const uint64_t *Matrix, int m, 
             b_change += brought_change;
             if (brought_change == 0)
             {
-                omp_set_lock(&g->L[u]);
+                omp_set_lock(&g->L[u % LOCKS_COUNT]);
                 if (v == g->V[(u + 1) * g->k - i])
                 {
                     g->V[(u + 1) * g->k - i] += g->n;
                 }
-                omp_unset_lock(&g->L[u]);
+                omp_unset_lock(&g->L[u % LOCKS_COUNT]);
             }
         }
     }
 }
-int KNN_greedy2_dist1_update(KNN *g, int u2, const uint64_t *Matrix, int m, int n)
+int KNN_random_insert(KNN *g, int u2, const uint64_t *restrict Matrix, int m, int n)
 {
     int b_change = 0;
 
@@ -211,72 +210,84 @@ int KNN_greedy2_dist1_update(KNN *g, int u2, const uint64_t *Matrix, int m, int 
     {
         int u = rand() % g->n;
 
-        omp_set_lock(&g->L[u]);
+        omp_set_lock(&g->L[u % LOCKS_COUNT]);
         for (int z = u * g->k; z < (u + 1) * g->k; z++)
             if (g->V[z] >= g->n)
             {
                 g->V[z] -= g->n;
             }
-        omp_unset_lock(&g->L[u]);
+        omp_unset_lock(&g->L[u % LOCKS_COUNT]);
     }
     return b_change;
-    int u;
+}
+int KNN_greedy_further_dist1_update(KNN *g, int u, const uint64_t *restrict Matrix, int m,
+                                    int n)
+{
+    int b_change = 1;
     int jk = 0;
     int sqrt_K = sqrt(g->k);
-    // while (b_change > 0)
+    while (b_change > 0)
     {
         b_change = 0;
-        for (int z = 1; z < sqrt_K; z++)
+        for (int z2 = 1; z2 < sqrt_K; z2++)
         {
-            int u1 = g->V[(u + 1) * g->k - z];
-            if (u1 >= g->n)
+            int u2 = g->V[(u)*g->k + z2];
+            if (u2 >= g->n)
             {
-                u1 -= g->n;
+                u2 -= g->n;
             }
-            for (int i = 1; i <= sqrt_K; i++)
+            for (int z = 1; z < sqrt_K; z++)
             {
-
-                int v = g->V[(u1 + 1) * g->k - i];
-                if (v >= g->n) //&& my_gen < g->gen[v - g->n]
+                int u1 = g->V[(u2 + 1) * g->k - z];
+                if (u1 >= g->n)
                 {
-                    // omp_set_lock(&g->L[u]);
-                    // if (v == g->V[(u + 1) * g->k - i])
-                    // {
-                    //     g->V[(u + 1) * g->k - i] -= g->n;
-                    // }
-                    // omp_unset_lock(&g->L[u]);
-                    continue;
+                    u1 -= g->n;
                 }
-                const int v1 = (v)*g->k;
-                int brought_change = 0;
-                for (int j = 0; j < g->k; j++)
+                for (int i = 1; i <= sqrt_K; i++)
                 {
-                    int w = g->V[v1 + j];
-                    if (u == w || w >= 2 * g->n)
+
+                    int v = g->V[(u1 + 1) * g->k - i];
+                    if (v >= g->n) //&& my_gen < g->gen[v - g->n]
                     {
+                        // omp_set_lock(&g->L[u]);
+                        // if (v == g->V[(u + 1) * g->k - i])
+                        // {
+                        //     g->V[(u + 1) * g->k - i] -= g->n;
+                        // }
+                        // omp_unset_lock(&g->L[u]);
                         continue;
                     }
-                    // if (KNN_contains_neighbor(g, u, w))
-                    //     continue;
-                    if (w >= g->n)
+                    const int v1 = (v)*g->k;
+                    int brought_change = 0;
+                    for (int j = 0; j < sqrt_K; j++)
                     {
-                        w -= g->n;
+                        int w = g->V[v1 + j];
+                        if (u == w || w >= 2 * g->n)
+                        {
+                            continue;
+                        }
+                        // if (KNN_contains_neighbor(g, u, w))
+                        //     continue;
+                        if (w >= g->n)
+                        {
+                            w -= g->n;
+                        }
+                        int d = hamming_portable(Matrix + u * n, Matrix + w * n, n);
+                        // if (d < g->D[(u * g->k) + (g->k - 1)])
+                        brought_change += KNN_insert_safe_min(g, u, w, d);
+                        // if (d < g->D[(w * g->k) + (g->k - 1)])
+                        brought_change += KNN_insert_safe_min(g, w, u, d);
                     }
-                    int d = hamming_portable(Matrix + u * n, Matrix + w * n, n);
-                    // if (d < g->D[(u * g->k) + (g->k - 1)])
-                    brought_change += KNN_insert_safe_min(g, u, w, d);
-                    // if (d < g->D[(w * g->k) + (g->k - 1)])
-                    brought_change += KNN_insert_safe_min(g, w, u, d);
-                }
-                b_change += brought_change;
-                if (brought_change == 0)
-                {
-                    // omp_set_lock(&g->L[u]);
-                    // if (v == g->V[(u + 1) * g->k - i])
-                    // {
-                    //     g->V[(u + 1) * g->k - i] += g->n;
-                    // }
-                    // omp_unset_lock(&g->L[u]);
+                    b_change += brought_change;
+                    if (brought_change == 0)
+                    {
+                        // omp_set_lock(&g->L[u]);
+                        // if (v == g->V[(u + 1) * g->k - i])
+                        // {
+                        //     g->V[(u + 1) * g->k - i] += g->n;
+                        // }
+                        // omp_unset_lock(&g->L[u]);
+                    }
                 }
             }
         }

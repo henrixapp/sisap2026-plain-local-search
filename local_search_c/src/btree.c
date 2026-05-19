@@ -137,7 +137,7 @@ void b_tree_init_KNN(KNN *g, BNode *tree, uint64_t *data, int bn)
     for (int u = 0; u < g->n; u++)
     {
         BNode *ptr = tree;
-        uint64_t curr = data + bn * u;
+        uint64_t *curr = data + bn * u;
         while (ptr != NULL)
         {
             if (ptr->is_leaf)

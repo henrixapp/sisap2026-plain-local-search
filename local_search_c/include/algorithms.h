@@ -2,7 +2,7 @@
 #include <immintrin.h>
 #include <stdint.h>
 
-static inline int hamming_portable(const uint64_t *a, const uint64_t *b,
+static inline int hamming_portable(const uint64_t *restrict a, const uint64_t *restrict b,
                                    int n)
 {
     int c = 0;
@@ -11,7 +11,7 @@ static inline int hamming_portable(const uint64_t *a, const uint64_t *b,
     return c;
 }
 
-static inline void quantize_1024_fp16_avx2(const uint16_t *input,
+static inline void quantize_1024_fp16_avx2(const uint16_t *restrict input,
                                            uint8_t *output, int comp)
 {
     __m256 zero = _mm256_setzero_ps();

@@ -42,12 +42,9 @@ int main(int argc, char **argv)
     int bn = n / 64;
 
     uint64_t *Matrix_bin = aligned_alloc(32, sizeof(uint64_t) * ((size_t)m * bn));
-    uint64_t *Matrix_bin2 = aligned_alloc(32, sizeof(uint64_t) * ((size_t)m * bn));
     for (int i = 0; i < m; i++)
         quantize_1024_fp16_avx2(Matrix + (size_t)i * n, (uint8_t *)(Matrix_bin + (size_t)i * bn), _CMP_GT_OQ);
-    int prej = rand() % m;
-    for (int i = 0; i < m; i++)
-        quantize_1024_fp16_avx2_with_pred(Matrix + (size_t)i * n, Matrix + (size_t)prej * n, (uint8_t *)(Matrix_bin2 + (size_t)i * bn), _CMP_GE_OQ);
+
     KNN *g = KNN_init(m, 64, n);
     // pidgeonize(g, Matrix_bin, bn * sizeof(uint64_t), bn);
     int tree_size = g->n;
@@ -57,15 +54,14 @@ int main(int argc, char **argv)
         indics[i] = i;
     }
     double t0 = omp_get_wtime();
-    for (int i = 0; i < 8; i++)
+    for (int i = 0; i < 2; i++)
     {
-        int mask = rand() % 2;
-        Node *tree = build_binary_rp_tree(mask ? Matrix_bin : Matrix_bin2, indics, tree_size, bn, g->n);
+        Node *tree = build_binary_rp_tree2(Matrix_bin, indics, tree_size, bn, g->n);
         printf("BUILD tree %f\n", omp_get_wtime() - t0);
         printTreeStats(tree);
         t0 = omp_get_wtime();
-
-        init_KNN(g, tree, mask ? Matrix_bin : Matrix_bin2, bn);
+        for (int j = 0; j < 1; j++)
+            init_KNN(g, tree, Matrix_bin, bn);
         free_tree(tree);
     }
     printf("Tree by tree %f\n", omp_get_wtime() - t0);
@@ -125,6 +121,10 @@ int main(int argc, char **argv)
         {
             int a = rand() % g->n;
             int b = rand() % g->n;
+            if (a == b)
+            {
+                continue;
+            }
             int tmp = O[a];
             O[a] = O[b];
             O[b] = tmp;
@@ -136,11 +136,19 @@ int main(int argc, char **argv)
 #pragma omp for schedule(dynamic, 256)
             for (int u = 0; u < g->n; u++)
             {
+                if (u % 10 == 0)
+                {
+                    KNN_greedy_further_dist1_update(g, O[u], Matrix_bin, m, bn);
+                }
+                if (u % 100 == 0)
+                {
+                    KNN_random_insert(g, O[u], Matrix_bin, m, bn);
+                }
 
                 if ((u % 100000) == 10)
                 {
 
-                    int succ = KNN_greedy2_dist1_update(g, O[u], Matrix_bin, m, bn);
+                    int succ = KNN_random_insert(g, O[u], Matrix_bin, m, bn);
                     KNN_greedy_dist1_update(g, O[u], Matrix_bin, m, bn);
 
                     float recall = KNN_compute_recall(g, KNNs, km, kn, 15);
@@ -148,11 +156,11 @@ int main(int argc, char **argv)
                 }
                 else if (u < part)
                 {
-                    KNN_greedy_dist1_update_fast(g, O[u], Matrix_bin, m, bn, 32 + (u % 20));
-                    KNN_greedy_dist1_update_fast(g, O[u], Matrix_bin2, m, bn, 32 + (u % 20));
+                    KNN_greedy_dist1_update_fast(g, O[u], Matrix_bin, m, bn, 32 + (u % 32));
                 }
-                else
-                    KNN_greedy_dist1_update(g, O[u], Matrix_bin, m, bn);
+                //  else
+                //   if (i % 8 == 0)
+                //      KNN_greedy_dist1_update(g, O[u], Matrix_bin, m, bn);
             }
 
             free(T);

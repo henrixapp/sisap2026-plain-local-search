@@ -69,16 +69,16 @@ regen:
         {
             go_left = 1;
         }
-        else // if (dist1 > dist2)
+        else if (dist1 > dist2)
         {
             go_left = 0;
         }
-        // else
-        // {
-        //     // CRITICAL: Random tie-breaking. In discrete binary spaces,
-        //     // exact ties are very common. Without this, trees become highly unbalanced.
-        //     go_left = rand() % 2;
-        // }
+        else
+        {
+            // CRITICAL: Random tie-breaking. In discrete binary spaces,
+            // exact ties are very common. Without this, trees become highly unbalanced.
+            go_left = rand() % 2;
+        }
 
         if (go_left)
         {
@@ -117,6 +117,99 @@ regen:
     return node;
 }
 
+// Recursive function to build the tree using Hamming distance
+Node *build_binary_rp_tree2(uint64_t *data, int *indices, int num_points, int bn, int all_points_n)
+{
+    if (num_points <= MAX_LEAF_SIZE)
+    {
+        return create_leaf(indices, num_points);
+    }
+
+    // 1. Pick two random distinct pivot points
+    int k = 0;
+    uint64_t *p1, *p2;
+    int passes = 0;
+    int idx1 = indices[rand() % num_points];
+    int dist2 = 0;
+    p1 = data + bn * idx1;
+    {
+        int counts[1024] = {0};
+
+#pragma omp parallel for reduction(+ : counts[ : 1024])
+        for (int j = 0; j < num_points; j++)
+        {
+            p2 = indices[j] * bn + data;
+            counts[hamming_portable(p1, p2, bn)]++;
+        }
+        size_t closer = 0;
+        while (closer < num_points / 2)
+        {
+            closer += counts[dist2];
+            // printf("bucket %d: %d\n", dist2, counts[dist2]);
+            dist2++;
+        }
+    }
+
+    // 2. In-place Partitioning
+    int left_ptr = 0;
+    int right_ptr = num_points - 1;
+
+    while (left_ptr <= right_ptr)
+    {
+        int dist1 = hamming_portable(data + bn * indices[left_ptr], p1, bn);
+
+        int go_left;
+        if (dist1 < dist2)
+        {
+            go_left = 1;
+        }
+        else if (dist1 > dist2)
+        {
+            go_left = 0;
+        }
+        else
+        {
+            // CRITICAL: Random tie-breaking. In discrete binary spaces,
+            // exact ties are very common. Without this, trees become highly unbalanced.
+            go_left = rand() % 2;
+        }
+
+        if (go_left)
+        {
+            left_ptr++; // Keep on the left side
+        }
+        else
+        {
+            // Swap with the right pointer
+            int temp = indices[left_ptr];
+            indices[left_ptr] = indices[right_ptr];
+            indices[right_ptr] = temp;
+            right_ptr--;
+        }
+    }
+
+    // 3. Handle degenerate splits (all points fell on one side due to tie-breaking luck)
+    if ((left_ptr == 0 || left_ptr == num_points) && passes < 2)
+    {
+        return create_leaf(indices, num_points);
+    }
+
+    // 4. Create internal node
+    Node *node = (Node *)malloc(sizeof(Node));
+    node->is_leaf = 0;
+    node->num_points = 0;
+    node->indices = NULL;
+
+    // Copy the pivots so the tree owns them (safe if underlying data shifts)
+    node->pivot1_index = idx1;
+    node->d = dist2;
+
+    // 5. Recurse
+    node->left = build_binary_rp_tree(data, indices, left_ptr, bn, all_points_n);
+    node->right = build_binary_rp_tree(data, indices + left_ptr, num_points - left_ptr, bn, all_points_n);
+
+    return node;
+}
 void free_tree(Node *node)
 {
     if (!node)
@@ -134,9 +227,7 @@ void free_tree(Node *node)
 }
 void init_KNN(KNN *g, Node *tree, uint64_t *data, int bn)
 {
-    int errors = 0;
-    int ties = 0;
-#pragma omp parallel for reduction(+ : errors, ties)
+#pragma omp parallel for
     for (int u = 0; u < g->n; u++)
     {
         Node *prev = NULL;
@@ -153,15 +244,14 @@ void init_KNN(KNN *g, Node *tree, uint64_t *data, int bn)
             {
                 ptr = ptr->left;
             }
-            else // if (d2 <= d1)
+            else if (d1 > ptr->d)
             {
                 ptr = ptr->right;
             }
-            // else
-            // {
-            //     ties++;
-            //     ptr = rand() % 2 ? ptr->left : ptr->right;
-            // }
+            else
+            {
+                ptr = rand() % 2 ? ptr->left : ptr->right;
+            }
         }
         if (ptr != NULL)
         {
@@ -172,12 +262,7 @@ void init_KNN(KNN *g, Node *tree, uint64_t *data, int bn)
                 KNN_insert_safe_min(g, ptr->indices[j], u, d);
             }
         }
-        else
-        {
-            errors++;
-        }
     }
-    printf("Errors: %d Ties: %d\n", errors, ties);
 }
 int height(Node *n)
 {

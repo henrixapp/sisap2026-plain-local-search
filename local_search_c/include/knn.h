@@ -9,7 +9,9 @@ typedef struct KNN_struct
     int k;  // Size of neighborhoods
     int *V; // List of neighbors (n if empty)
     int *gen;
-    int16_t *D;    // Sorted dot products between vertices (descending)
+    int16_t *D; // Sorted dot products between vertices (descending)
+#define LOCKS_COUNT 1024
+
     omp_lock_t *L; // Locks for mutual exclusion
 } KNN;
 
@@ -54,10 +56,11 @@ static inline int KNN_insert_safe_min(KNN *g, int u, int v, int16_t d)
     {
         return 0;
     }
-    omp_set_lock(&g->L[u]);
+    int lock_pos = u % LOCKS_COUNT;
+    omp_set_lock(&g->L[lock_pos]);
     if (KNN_contains_neighbor(g, u, v, d))
     {
-        omp_unset_lock(&g->L[u]);
+        omp_unset_lock(&g->L[lock_pos]);
 
         return 0;
     }
@@ -104,14 +107,16 @@ static inline int KNN_insert_safe_min(KNN *g, int u, int v, int16_t d)
             }
         }
     }
-    omp_unset_lock(&g->L[u]);
+    omp_unset_lock(&g->L[lock_pos]);
     return 1;
 }
 
 void KNN_greedy_dist1_update(KNN *g, int u, const uint64_t *Matrix, int m,
                              int n);
-int KNN_greedy2_dist1_update(KNN *g, int u, const uint64_t *Matrix, int m,
-                             int n);
+int KNN_random_insert(KNN *g, int u, const uint64_t *Matrix, int m,
+                      int n);
+int KNN_greedy_further_dist1_update(KNN *g, int u, const uint64_t *Matrix, int m,
+                                    int n);
 void KNN_greedy_dist1_update_fast(KNN *g, int u, const uint64_t *Matrix, int m, int n, int smaller_k);
 
 float KNN_compute_recall(KNN *g, const int *KNNs, int m, int n, int k);
