@@ -112,7 +112,7 @@ static inline int KNN_insert_safe_min(KNN *g, int u, int v, int16_t d)
 }
 
 void KNN_greedy_dist1_update(KNN *g, int u, const uint64_t *Matrix, int m,
-                             int n);
+                             int n, int rq);
 int KNN_random_insert(KNN *g, int u, const uint64_t *Matrix, int m,
                       int n);
 int KNN_greedy_further_dist1_update(KNN *g, int u, const uint64_t *Matrix, int m,
@@ -120,6 +120,8 @@ int KNN_greedy_further_dist1_update(KNN *g, int u, const uint64_t *Matrix, int m
 void KNN_greedy_dist1_update_fast(KNN *g, int u, const uint64_t *Matrix, int m, int n, int smaller_k);
 
 float KNN_compute_recall(KNN *g, const int *KNNs, int m, int n, int k);
+float KNN_compute_dist1(KNN *g, const uint64_t *matrix_bin, int bn);
+
 #define MAX_PIDG 4
 typedef struct Hole
 {

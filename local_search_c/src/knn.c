@@ -6,6 +6,7 @@
 #include <assert.h>
 
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 KNN *KNN_init(int n, int k, float ref)
 {
@@ -77,10 +78,10 @@ int KNN_validate(KNN *g)
     return error == 0;
 }
 
-void KNN_greedy_dist1_update(KNN *g, int u, const uint64_t *restrict Matrix, int m, int n)
+void KNN_greedy_dist1_update(KNN *g, int u, const uint64_t *restrict Matrix, int m, int n, int required_change)
 {
     int jk = 0;
-    int b_change = 1;
+    int b_change = g->k * g->k;
     int my_gen = 1;
     const uint64_t *restrict curr = Matrix + n * u;
     while (b_change > 0)
@@ -174,6 +175,20 @@ void KNN_greedy_dist1_update_fast(KNN *g, int u, const uint64_t *restrict Matrix
                 {
                     w -= g->n;
                 }
+                //                 int eliminated = g->V[u*g->k];
+                // if( KNN_insert_safe_min(g, u, w, d)){
+                //     brought_change +=1;
+                //      int d1 = hamming_portable( Matrix + w*n, Matrix + eliminated * n, n);
+                //     KNN_insert_safe_min(g,eliminated,w,d1);
+                //     KNN_insert_safe_min(g,w,eliminated,d1);
+                // }
+                // eliminated = g->V[w*g->k];
+                // if( KNN_insert_safe_min(g, w, u, d)){
+                //     brought_change +=1;
+                //      int d1 = hamming_portable( Matrix + u*n, Matrix + eliminated * n, n);
+                //     KNN_insert_safe_min(g,eliminated,u,d1);
+                //     KNN_insert_safe_min(g,u,eliminated,d1);
+                // }
                 int d = hamming_portable(curr, Matrix + w * n, n);
                 // if (d < g->D[(u * g->k) + (g->k - 1)])
                 brought_change += KNN_insert_safe_min(g, u, w, d);
@@ -292,6 +307,44 @@ int KNN_greedy_further_dist1_update(KNN *g, int u, const uint64_t *restrict Matr
             }
         }
     }
+}
+float KNN_compute_dist1(KNN *g, const uint64_t *matrix_bin, int bn)
+{
+    float min = 1024;
+    float max = 0;
+    float avg = 0;
+    printf("START_HIST\n");
+    for (int i = 0; i < g->n; i++)
+    {
+        if (i % (g->n / 64) == (g->n / 64 - 1))
+        {
+            printf("%f %f %f\n", min, avg / (g->n / 64), max);
+            avg = 0;
+            min = 1024;
+            max = 0;
+        }
+        float avg_dist = 0;
+        for (int j = 0; j < g->k; j++)
+        {
+            int u = g->V[i * g->k + j];
+            int dist = hamming_portable(matrix_bin + i * bn, matrix_bin + u * bn, bn);
+            avg_dist += dist;
+        }
+        avg_dist /= g->k;
+        if (avg_dist < min)
+        {
+            min = avg_dist;
+        }
+
+        if (avg_dist > max)
+        {
+            max = avg_dist;
+        }
+        avg += avg_dist;
+    }
+    printf("END_HIST\n");
+
+    printf("min: %f avg %f max %f\n", min, avg / g->n, max);
 }
 float KNN_compute_recall(KNN *g, const int *KNNs, int m, int n, int k)
 {

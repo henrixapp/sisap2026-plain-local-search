@@ -16,7 +16,7 @@ Node *create_leaf(int *indices, int num_points)
         node->indices[i] = indices[i];
     }
     node->pivot1_index = 0;
-    node->d = 0;
+    node->pivot2_index = 0;
     node->left = NULL;
     node->right = NULL;
     return node;
@@ -44,7 +44,7 @@ regen:
         idx2 = indices[rand() % num_points];
         if (idx1 == idx2)
         {
-            idx2 = (idx1 + 1) % all_points_n;
+            idx2 = indices[(idx1 + 1) % num_points];
         }
 
         p1 = data + bn * idx1;
@@ -59,10 +59,10 @@ regen:
     // 2. In-place Partitioning
     int left_ptr = 0;
     int right_ptr = num_points - 1;
-    int dist2 = hamming_portable(p1, p2, bn);
     while (left_ptr <= right_ptr)
     {
         int dist1 = hamming_portable(data + bn * indices[left_ptr], p1, bn);
+        int dist2 = hamming_portable(data + bn * indices[left_ptr], p2, bn);
 
         int go_left;
         if (dist1 < dist2)
@@ -108,7 +108,7 @@ regen:
 
     // Copy the pivots so the tree owns them (safe if underlying data shifts)
     node->pivot1_index = idx1;
-    node->d = dist2;
+    node->pivot2_index = idx2;
 
     // 5. Recurse
     node->left = build_binary_rp_tree(data, indices, left_ptr, bn, all_points_n);
@@ -202,7 +202,7 @@ Node *build_binary_rp_tree2(uint64_t *data, int *indices, int num_points, int bn
 
     // Copy the pivots so the tree owns them (safe if underlying data shifts)
     node->pivot1_index = idx1;
-    node->d = dist2;
+    node->pivot2_index = dist2;
 
     // 5. Recurse
     node->left = build_binary_rp_tree(data, indices, left_ptr, bn, all_points_n);
@@ -240,11 +240,13 @@ void init_KNN(KNN *g, Node *tree, uint64_t *data, int bn)
                 break;
             }
             int d1 = hamming_portable(data + ptr->pivot1_index * bn, curr, bn);
-            if (d1 < ptr->d)
+            int d2 = hamming_portable(data + ptr->pivot2_index * bn, curr, bn);
+
+            if (d1 < d2)
             {
                 ptr = ptr->left;
             }
-            else if (d1 > ptr->d)
+            else if (d1 > d2)
             {
                 ptr = ptr->right;
             }

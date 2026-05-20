@@ -54,6 +54,10 @@ def main(files,out1):
     stdin_t = []
     start_parsing = False
     stdin_line = None
+    hist_parsing = False
+    hist_max = []
+    hist_avg = []
+    hist_min = []
     
     # sys.stdin acts as a generator, yielding lines as they are received
     with open(out1,"w")as f:
@@ -61,6 +65,34 @@ def main(files,out1):
         # readline() blocks cleanly until a '\n' arrives, then jumps into action
             line_str = sys.stdin.readline()
             line_str = line_str.strip()
+            if line_str =="START_HIST":
+                hist_parsing = True
+                continue
+            
+            if line_str =="END_HIST":
+                hist_parsing= False
+                plt.figure()
+                plt.bar([i for i in range(len(hist_max))],hist_max,label="max")
+
+                
+                plt.bar([i for i in range(len(hist_min))],hist_min,label="min")
+  
+                plt.bar([i for i in range(len(hist_avg))],hist_avg,label="avg")
+                plt.legend()
+                plt.savefig("hist_avg.png")
+                
+                hist_max =[]
+                hist_min=[]
+                hist_avg = []
+                continue
+            if hist_parsing:
+                    l = line_str.split(" ")
+                    hist_avg += [float(l[1])]
+                    hist_min += [float(l[0])]
+                    hist_max += [float(l[2])]
+                    
+
+                    continue
             print(line_str)
             
             if line_str == 'START_MESSAGE':

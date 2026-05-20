@@ -40,11 +40,15 @@ int main(int argc, char **argv)
     printf("%d %d\n", kn, km);
 
     int bn = n / 64;
-
+    int bn8 = bn / 4;
     uint64_t *Matrix_bin = aligned_alloc(32, sizeof(uint64_t) * ((size_t)m * bn));
+    uint64_t *Matrix_bin8 = aligned_alloc(32, sizeof(uint64_t) * ((size_t)m * bn8));
     for (int i = 0; i < m; i++)
+    {
         quantize_1024_fp16_avx2(Matrix + (size_t)i * n, (uint8_t *)(Matrix_bin + (size_t)i * bn), _CMP_GT_OQ);
 
+        minimize_to_8((uint16_t *)(Matrix_bin + (size_t)i * bn), (uint16_t *)(Matrix_bin8 + (size_t)i * bn8));
+    }
     KNN *g = KNN_init(m, 64, n);
     // pidgeonize(g, Matrix_bin, bn * sizeof(uint64_t), bn);
     int tree_size = g->n;
@@ -54,9 +58,9 @@ int main(int argc, char **argv)
         indics[i] = i;
     }
     double t0 = omp_get_wtime();
-    for (int i = 0; i < 2; i++)
+    for (int i = 0; i < 4; i++)
     {
-        Node *tree = build_binary_rp_tree2(Matrix_bin, indics, tree_size, bn, g->n);
+        Node *tree = build_binary_rp_tree(Matrix_bin, indics, tree_size, bn, g->n);
         printf("BUILD tree %f\n", omp_get_wtime() - t0);
         printTreeStats(tree);
         t0 = omp_get_wtime();
@@ -113,7 +117,7 @@ int main(int argc, char **argv)
     int part = g->n;
     printf("START_MESSAGE\n");
     int *O = malloc(sizeof(int) * g->n);
-    for (int i = 0; i < g->n; i++)
+    for (int i = 0; i < g->n / 2; i++)
         O[i] = i;
     for (int i = 0; i < 16; i++)
     {
@@ -132,35 +136,41 @@ int main(int argc, char **argv)
 #pragma omp parallel
         {
             int *T = malloc(sizeof(int) * g->k * g->k); // what is that for?
-
+            const int iters = g->n;
 #pragma omp for schedule(dynamic, 256)
-            for (int u = 0; u < g->n; u++)
+            for (int u = 0; u < iters; u++)
             {
-                if (u % 10 == 0)
-                {
-                    KNN_greedy_further_dist1_update(g, O[u], Matrix_bin, m, bn);
-                }
-                if (u % 100 == 0)
-                {
-                    KNN_random_insert(g, O[u], Matrix_bin, m, bn);
-                }
+                // if (u % 10 == 0)
+                // {
+                //     KNN_greedy_further_dist1_update(g, O[u], Matrix_bin, m, bn);
+                // }
+                // if (u % 100 == 0)
+                // {
+                //     KNN_random_insert(g, O[u], Matrix_bin, m, bn);
+                // }
 
                 if ((u % 100000) == 10)
                 {
 
-                    int succ = KNN_random_insert(g, O[u], Matrix_bin, m, bn);
-                    KNN_greedy_dist1_update(g, O[u], Matrix_bin, m, bn);
+                    // int succ = KNN_random_insert(g, O[u], Matrix_bin, m, bn);
+                    // KNN_greedy_dist1_update(g, O[u], Matrix_bin, m, bn);
 
                     float recall = KNN_compute_recall(g, KNNs, km, kn, 15);
-                    printf("%f %f %d\n", recall, omp_get_wtime() - t2, succ);
+                    printf("%f %f \n", recall, omp_get_wtime() - t2);
+                    // KNN_compute_dist1(g, Matrix_bin, bn);
                 }
-                else if (u < part)
-                {
-                    KNN_greedy_dist1_update_fast(g, O[u], Matrix_bin, m, bn, 32 + (u % 32));
-                }
-                //  else
-                //   if (i % 8 == 0)
-                //      KNN_greedy_dist1_update(g, O[u], Matrix_bin, m, bn);
+                // else if (u < part)
+                // {
+                //     KNN_greedy_dist1_update_fast(g, O[u], Matrix_bin, m, bn, 32 + (u % 32));
+                // }
+                // //  else
+                // //   if (i % 8 == 0)
+                int rq = ((float)g->k) / ((float)(iters - u));
+                KNN_greedy_dist1_update(g, O[u], Matrix_bin, m, bn, rq);
+                // KNN_greedy_dist1_update(g, g->n / 2 - O[u] - 1, Matrix_bin, m, bn);
+                // KNN_greedy_dist1_update(g, g->n / 2 + O[u], Matrix_bin, m, bn);
+
+                // KNN_greedy_dist1_update(g, g->n - O[u] - 1, Matrix_bin, m, bn, rq);
             }
 
             free(T);
