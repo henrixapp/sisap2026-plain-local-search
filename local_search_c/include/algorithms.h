@@ -1,12 +1,12 @@
 #pragma once
+#include "constants.h"
 #include <immintrin.h>
 #include <stdint.h>
 
-static inline int hamming_portable(const uint64_t *a, const uint64_t *b,
-                                   int n)
+static inline int hamming_portable(const uint64_t *a, const uint64_t *b, int bn)
 {
     int c = 0;
-    for (int i = 0; i < n; i++)
+    for (int i = 0; i < bn; i++)
         c += __builtin_popcountll(a[i] ^ b[i]);
     return c;
 }
