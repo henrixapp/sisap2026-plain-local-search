@@ -1,7 +1,7 @@
 #pragma once
+#include "constants.h"
 #include "knn.h"
 #include <stdint.h>
-#define MAX_LEAF_SIZE 64
 typedef struct Node
 {
     int is_leaf;

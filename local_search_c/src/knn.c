@@ -6,16 +6,15 @@
 #include <assert.h>
 #include <stdlib.h>
 
-KNN *KNN_init(int n, int k, float ref)
+KNN *KNN_init(int n, float ref)
 {
     KNN *g = malloc(sizeof(KNN));
 
-    g->k = k;
     g->n = n;
-    g->V = malloc(sizeof(int) * n * k);
-    g->D = malloc(sizeof(int16_t) * n * k);
+    g->V = malloc(sizeof(int) * n * LOCAL_SEARCH_SIZE_OF_NEIGHBORS);
+    g->D = malloc(sizeof(int16_t) * n * LOCAL_SEARCH_SIZE_OF_NEIGHBORS);
     g->L = malloc(sizeof(omp_lock_t) * n);
-    for (int i = 0; i < n * k; i++)
+    for (int i = 0; i < n * LOCAL_SEARCH_SIZE_OF_NEIGHBORS; i++)
     {
         g->V[i] = 2 * n;
         g->D[i] = ref;
@@ -51,15 +50,15 @@ int KNN_validate(KNN *g)
 #pragma omp parallel for reduction(+ : error)
     for (int i = 0; i < g->n; i++)
     {
-        for (int j = 0; j < g->k; j++)
+        for (int j = 0; j < LOCAL_SEARCH_SIZE_OF_NEIGHBORS; j++)
         {
-            int u = g->V[i * g->k + j];
+            int u = g->V[i * LOCAL_SEARCH_SIZE_OF_NEIGHBORS + j];
             if (u == g->n)
                 continue;
 
-            for (int k = j + 1; k < g->k; k++)
+            for (int k = j + 1; k < LOCAL_SEARCH_SIZE_OF_NEIGHBORS; k++)
             {
-                int v = g->V[i * g->k + k];
+                int v = g->V[i * LOCAL_SEARCH_SIZE_OF_NEIGHBORS + k];
                 if (u == v)
                 {
                     error = 1;
@@ -78,22 +77,22 @@ void KNN_greedy_dist1_update(KNN *g, int u, const uint64_t *Matrix, int m, int n
     while (b_change > 0)
     {
         b_change = 0;
-        for (int i = 1; i <= g->k; i++)
+        for (int i = 1; i <= LOCAL_SEARCH_SIZE_OF_NEIGHBORS; i++)
         {
 
-            int v = g->V[(u + 1) * g->k - i];
+            int v = g->V[(u + 1) * LOCAL_SEARCH_SIZE_OF_NEIGHBORS - i];
             if (v >= g->n)
             {
                 //             omp_set_lock(&g->L[u]);
-                //             if( v ==g->V[(u+1) * g->k - i]) {
-                //                 g->V[(u+1) * g->k - i] -=g->n;
+                //             if( v ==g->V[(u+1) * LOCAL_SEARCH_SIZE_OF_NEIGHBORS - i]) {
+                //                 g->V[(u+1) * LOCAL_SEARCH_SIZE_OF_NEIGHBORS - i] -=g->n;
                 //             }
                 //   omp_unset_lock(&g->L[u]);
                 continue;
             }
-            const int v1 = (v)*g->k;
+            const int v1 = (v)*LOCAL_SEARCH_SIZE_OF_NEIGHBORS;
             int brought_change = 0;
-            for (int j = 0; j < g->k; j++)
+            for (int j = 0; j < LOCAL_SEARCH_SIZE_OF_NEIGHBORS; j++)
             {
                 int w = g->V[v1 + j];
                 if (u == w || w >= 2 * g->n)
@@ -107,18 +106,18 @@ void KNN_greedy_dist1_update(KNN *g, int u, const uint64_t *Matrix, int m, int n
                     w -= g->n;
                 }
                 int d = hamming_portable(Matrix + u * n, Matrix + w * n, n);
-                // if (d < g->D[(u * g->k) + (g->k - 1)])
+                // if (d < g->D[(u * LOCAL_SEARCH_SIZE_OF_NEIGHBORS) + (LOCAL_SEARCH_SIZE_OF_NEIGHBORS - 1)])
                 brought_change += KNN_insert_safe_min(g, u, w, d);
-                // if (d < g->D[(w * g->k) + (g->k - 1)])
+                // if (d < g->D[(w * LOCAL_SEARCH_SIZE_OF_NEIGHBORS) + (LOCAL_SEARCH_SIZE_OF_NEIGHBORS - 1)])
                 brought_change += KNN_insert_safe_min(g, w, u, d);
             }
             b_change += brought_change;
             if (brought_change == 0)
             {
                 omp_set_lock(&g->L[u]);
-                if (v == g->V[(u + 1) * g->k - i])
+                if (v == g->V[(u + 1) * LOCAL_SEARCH_SIZE_OF_NEIGHBORS - i])
                 {
-                    g->V[(u + 1) * g->k - i] += g->n;
+                    g->V[(u + 1) * LOCAL_SEARCH_SIZE_OF_NEIGHBORS - i] += g->n;
                 }
                 omp_unset_lock(&g->L[u]);
             }
@@ -135,9 +134,9 @@ float KNN_compute_recall(KNN *g, const int *KNNs, int m, int n, int k)
 #pragma omp parallel for reduction(+ : tp)
     for (int i = 0; i < g->n; i++)
     {
-        for (int j = 0; j < g->k; j++)
+        for (int j = 0; j < LOCAL_SEARCH_SIZE_OF_NEIGHBORS; j++)
         {
-            int u = g->V[i * g->k + j];
+            int u = g->V[i * LOCAL_SEARCH_SIZE_OF_NEIGHBORS + j];
 
             for (int l = 0; l < k + 1; l++) // Using k + 1 since result contain self loops
             {

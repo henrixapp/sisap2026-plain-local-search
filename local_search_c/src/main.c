@@ -39,12 +39,12 @@ int main(int argc, char **argv)
 
     int bn = n / 64;
     printf("%d \n", bn);
-    uint64_t *Matrix_bin = aligned_alloc(32, sizeof(uint64_t) * ((size_t)m * bn));
+    __attribute__((aligned(64))) uint64_t *Matrix_bin = aligned_alloc(64, sizeof(uint64_t) * ((size_t)m * bn));
 
     for (int i = 0; i < m; i++)
         quantize_1024_fp16_avx2(Matrix + (size_t)i * n, (uint8_t *)(Matrix_bin + (size_t)i * bn));
 
-    KNN *g = KNN_init(m, 64, n);
+    KNN *g = KNN_init(m, n);
     // pidgeonize(g, Matrix_bin, bn * sizeof(uint64_t), bn);
     int tree_size = g->n;
     int *indics = (int *)malloc(sizeof(int) * tree_size);
@@ -113,7 +113,7 @@ int main(int argc, char **argv)
     {
 #pragma omp parallel
         {
-            int *T = malloc(sizeof(int) * g->k * g->k); // what is that for?
+            int *T = malloc(sizeof(int) * LOCAL_SEARCH_SIZE_OF_NEIGHBORS * LOCAL_SEARCH_SIZE_OF_NEIGHBORS); // what is that for?
 
 #pragma omp for schedule(dynamic, 256)
             for (int u = 0; u < g->n; u++)
@@ -123,7 +123,7 @@ int main(int argc, char **argv)
 
             free(T);
         }
-        for (size_t i = 0; i < g->n * g->k; i++)
+        for (size_t i = 0; i < g->n * LOCAL_SEARCH_SIZE_OF_NEIGHBORS; i++)
         {
             if (g->V[i] >= g->n)
                 g->V[i] -= g->n;
