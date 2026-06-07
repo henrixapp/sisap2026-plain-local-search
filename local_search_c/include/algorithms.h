@@ -16,7 +16,7 @@ static inline __m256i popcnt(const __m256i v)
     return _mm256_sad_epu8(t3, _mm256_setzero_si256());
 }
 
-static inline int hamming_portable(const uint64_t *a, const uint64_t *b, int bn)
+static inline int hamming_portable(const uint64_t *restrict a, const uint64_t *restrict b, int bn)
 {
 #ifdef LS_AVX_512_POP_COUNT
     // Cast pointers to 512-bit vector types
@@ -57,6 +57,9 @@ static inline int hamming_portable(const uint64_t *a, const uint64_t *b, int bn)
     // }
     // return final_distance;
     int c = 0;
+    __builtin_prefetch(((const char *)a) + 64, 0, 3);
+    __builtin_prefetch(((const char *)b) + 64, 0, 3);
+
     for (int i = 0; i < bn; i++)
         c += __builtin_popcountll(a[i] ^ b[i]);
     return c;
