@@ -82,3 +82,15 @@ static inline void quantize_1024_fp16_avx2(const uint16_t *input,
         output[i] = (uint8_t)_mm256_movemask_ps(mask);
     }
 }
+static void prefetch_1024_bits(uint64_t *Matrix, size_t v)
+{
+    const void *address = Matrix + v * LOCAL_SEARCH_DIMS_IN_64BIT;
+    // Cast to char* so pointer arithmetic operates in bytes
+    const char *ptr = (const char *)address;
+
+    // Prefetch the first 64 bytes (512 bits)
+    __builtin_prefetch(ptr, 0, 2);
+
+    // Prefetch the second 64 bytes (the remaining 512 bits)
+    __builtin_prefetch(ptr + 64, 0, 2);
+}

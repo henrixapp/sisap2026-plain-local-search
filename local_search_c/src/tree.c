@@ -259,6 +259,8 @@ void init_KNN(KNN *g, Node *tree, uint64_t *data)
         {
             for (int j = 0; j < ptr->num_points; j++)
             {
+                if (j < ptr->num_points - 1)
+                    prefetch_1024_bits(data, ptr->indices[j + 1]);
                 int d = hamming_portable(curr, data + ptr->indices[j] * LOCAL_SEARCH_DIMS_IN_64BIT, LOCAL_SEARCH_DIMS_IN_64BIT);
                 KNN_insert_safe_min(g, u, ptr->indices[j], d);
                 KNN_insert_safe_min(g, ptr->indices[j], u, d);
