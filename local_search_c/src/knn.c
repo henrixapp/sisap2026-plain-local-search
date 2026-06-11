@@ -9,14 +9,13 @@
 KNN *KNN_init(int n, int k, float ref)
 {
     KNN *g = malloc(sizeof(KNN));
-
     g->k = k;
     g->n = n;
-    g->V = malloc(sizeof(int) * n * k);
-    g->D = malloc(sizeof(float) * n * k);
+    g->V = malloc(sizeof(int) * n * LOCAL_SEARCH_NEIGHBORHOOD_SIZE);
+    g->D = malloc(sizeof(float) * n * LOCAL_SEARCH_NEIGHBORHOOD_SIZE);
     g->L = malloc(sizeof(omp_lock_t) * n);
 
-    for (int i = 0; i < n * k; i++)
+    for (int i = 0; i < n * LOCAL_SEARCH_NEIGHBORHOOD_SIZE; i++)
     {
         g->V[i] = n;
         g->D[i] = ref;
@@ -52,15 +51,15 @@ int KNN_validate(KNN *g)
 #pragma omp parallel for reduction(+ : error)
     for (int i = 0; i < g->n; i++)
     {
-        for (int j = 0; j < g->k; j++)
+        for (int j = 0; j < LOCAL_SEARCH_NEIGHBORHOOD_SIZE; j++)
         {
-            int u = g->V[i * g->k + j];
+            int u = g->V[i * LOCAL_SEARCH_NEIGHBORHOOD_SIZE + j];
             if (u == g->n)
                 continue;
 
-            for (int k = j + 1; k < g->k; k++)
+            for (int k = j + 1; k < LOCAL_SEARCH_NEIGHBORHOOD_SIZE; k++)
             {
-                int v = g->V[i * g->k + k];
+                int v = g->V[i * LOCAL_SEARCH_NEIGHBORHOOD_SIZE + k];
                 if (u == v)
                     error = 1;
             }
@@ -71,12 +70,12 @@ int KNN_validate(KNN *g)
 
 void KNN_greedy_dist1_update_simple(KNN *g, int u, const uint64_t *Matrix, int m, int n)
 {
-    for (int i = g->k / 4; i >= 0; i--)
+    for (int i = LOCAL_SEARCH_NEIGHBORHOOD_SIZE / 4; i >= 0; i--)
     {
-        int v = g->V[u * g->k + i];
-        for (int j = g->k - 1; j >= 0; j--)
+        int v = g->V[u * LOCAL_SEARCH_NEIGHBORHOOD_SIZE + i];
+        for (int j = LOCAL_SEARCH_NEIGHBORHOOD_SIZE - 1; j >= 0; j--)
         {
-            int w = g->V[v * g->k + j];
+            int w = g->V[v * LOCAL_SEARCH_NEIGHBORHOOD_SIZE + j];
 
             int d = hamming_portable(Matrix + u * n, Matrix + w * n, n);
             KNN_insert_safe(g, u, w, d);
@@ -94,9 +93,9 @@ float KNN_compute_recall(KNN *g, const int *KNNs, int m, int n, int k)
 #pragma omp parallel for reduction(+ : tp)
     for (int i = 0; i < g->n; i++)
     {
-        for (int j = 0; j < g->k; j++)
+        for (int j = 0; j < LOCAL_SEARCH_NEIGHBORHOOD_SIZE; j++)
         {
-            int u = g->V[i * g->k + j];
+            int u = g->V[i * LOCAL_SEARCH_NEIGHBORHOOD_SIZE + j];
 
             for (int l = 0; l < k + 1; l++) // Using k + 1 since result contain self loops
             {

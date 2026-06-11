@@ -207,9 +207,9 @@ int main(int argc, char **argv)
         int *N = k_NN + (u * 15);
         float *Nd = k_NN_d + (u * 15);
 
-        for (int i = 0; i < g->k; i++)
+        for (int i = 0; i < LOCAL_SEARCH_NEIGHBORHOOD_SIZE; i++)
         {
-            int v = g->V[u * g->k + i];
+            int v = g->V[u * LOCAL_SEARCH_NEIGHBORHOOD_SIZE + i];
             float d = compute_dot_product(Matrix, m, n, u, v);
 
             if (d < Nd[14])

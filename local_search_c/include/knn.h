@@ -1,8 +1,8 @@
 #pragma once
 
+#include "constants.h"
 #include <omp.h>
 #include <stdint.h>
-
 typedef struct KNN_struct
 {
     int n;         // Number of vertices
@@ -20,19 +20,19 @@ int KNN_validate(KNN *g);
 
 static inline void KNN_insert_safe(KNN *g, int u, int v, int d)
 {
-    int pos = (u * g->k) + (g->k - 1);
+    int pos = (u * LOCAL_SEARCH_NEIGHBORHOOD_SIZE) + (LOCAL_SEARCH_NEIGHBORHOOD_SIZE - 1);
 
     // Stop if d is worse than the worst neighbor
     if (g->D[pos] <= d)
         return;
     omp_set_lock(&g->L[u]);
-    const int next_one = (u + 1) * g->k;
-    for (int i = u * g->k; i < next_one; i++)
+    const int next_one = (u + 1) * LOCAL_SEARCH_NEIGHBORHOOD_SIZE;
+    for (int i = u * LOCAL_SEARCH_NEIGHBORHOOD_SIZE; i < next_one; i++)
         if (g->V[i] == v)
             goto end;
 
     // Finding insertion point (linear scan back)
-    while (pos > (u * g->k) && g->D[pos - 1] > d)
+    while (pos > (u * LOCAL_SEARCH_NEIGHBORHOOD_SIZE) && g->D[pos - 1] > d)
     {
         g->D[pos] = g->D[pos - 1];
         g->V[pos] = g->V[pos - 1];
