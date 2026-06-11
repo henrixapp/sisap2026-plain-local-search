@@ -3,11 +3,16 @@
 #include <omp.h>
 #include <stdint.h>
 
+typedef struct __attribute__((__packed__))
+{
+    unsigned int v;
+    int16_t d;
+} VDentry;
 typedef struct KNN_struct
 {
     int n;         // Number of vertices
-    int *V;        // List of neighbors (n if empty)
-    int16_t *D;    // Sorted dot products between vertices (descending)
+    VDentry *VD;   // List of neighbors (n if empty)
+                   // int16_t *D;    // Sorted dot products between vertices (descending)
     omp_lock_t *L; // Locks for mutual exclusion
 } KNN;
 
@@ -21,24 +26,27 @@ static inline int KNN_contains_neighbor(KNN *g, int u, int v, int d)
 {
 
     const int z = u * LOCAL_SEARCH_SIZE_OF_NEIGHBORS;
-    int j = 1;
-    if (u == v || g->D[z] < d)
+    int j = 0;
+    if (u == v || g->VD[z].d < d)
     {
         return 0;
     }
     for (; j < LOCAL_SEARCH_SIZE_OF_NEIGHBORS; j++)
-        if ((g->V[z + j] == v) || ((g->V[z + j] - g->n) == v))
+        if ((g->VD[z + j].v == v) || ((g->VD[z + j].v - g->n) == v))
             return 1;
     return 0;
 }
 static inline void swapper(KNN *g, int pos_a, int pos_b)
 {
-    int D_temp = g->D[pos_a];
-    g->D[pos_a] = g->D[pos_b];
-    g->D[pos_b] = D_temp;
-    int V_temp = g->V[pos_a];
-    g->V[pos_a] = g->V[pos_b];
-    g->V[pos_b] = V_temp;
+    // int D_temp = g->D[pos_a];
+    // g->D[pos_a] = g->D[pos_b];
+    // g->D[pos_b] = D_temp;
+    // int V_temp = g->V[pos_a];
+    // g->V[pos_a] = g->V[pos_b];
+    // g->V[pos_b] = V_temp;
+    VDentry entry = g->VD[pos_a];
+    g->VD[pos_a] = g->VD[pos_b];
+    g->VD[pos_b] = entry;
 }
 static inline int KNN_insert_safe_min(KNN *g, int u, int v, int16_t d)
 {
@@ -48,7 +56,7 @@ static inline int KNN_insert_safe_min(KNN *g, int u, int v, int16_t d)
     }
     int pos = (u * LOCAL_SEARCH_SIZE_OF_NEIGHBORS); // Implementing max heap
     int basePos = (u * LOCAL_SEARCH_SIZE_OF_NEIGHBORS);
-    if (g->D[pos] <= d)
+    if (g->VD[pos].d <= d)
     {
         return 0;
     }
@@ -62,45 +70,30 @@ static inline int KNN_insert_safe_min(KNN *g, int u, int v, int16_t d)
     }
     int heapPos = 0;
     // Insert- override max value
-    g->D[pos] = d;
-    g->V[pos] = v;
+    g->VD[pos].d = d;
+    g->VD[pos].v = v;
 
     // Bubble down
     while (2 * heapPos + 2 < LOCAL_SEARCH_SIZE_OF_NEIGHBORS)
     {
         int left = 2 * heapPos + 1;
         int right = 2 * heapPos + 2;
-        if (g->D[basePos + left] > g->D[basePos + right])
+        int better = (g->VD[basePos + left].d > g->VD[basePos + right].d) * left + (g->VD[basePos + left].d <= g->VD[basePos + right].d) * right;
+
+        // left larger
+        if (g->VD[basePos + better].d > d)
         {
-            // left larger
-            if (g->D[basePos + left] > d)
-            {
-                // have to swap
-                swapper(g, basePos + left, basePos + heapPos);
-                heapPos = left;
-                continue;
-            }
-            else
-            {
-                break;
-            }
+            // have to swap
+            swapper(g, basePos + better, basePos + heapPos);
+            heapPos = better;
+            continue;
         }
         else
         {
-            // right larger
-            if (g->D[basePos + right] > d)
-            {
-                // have to swap
-                swapper(g, basePos + right, basePos + heapPos);
-                heapPos = right;
-                continue;
-            }
-            else
-            {
-                break;
-            }
+            break;
         }
     }
+
     omp_unset_lock(&g->L[u]);
     return 1;
 }

@@ -26,7 +26,7 @@ int compare_alt(const void *a, const void *b, void *c)
 
 int main(int argc, char **argv)
 {
-    printf("%s\n", argv[1]);
+    printf("%s %d\n", argv[1], sizeof(VDentry));
 
     int n = 0, m = 0;
     uint16_t *Matrix = matrix_load_h5_data(argv[1], "/train", &m, &n);
@@ -125,8 +125,8 @@ int main(int argc, char **argv)
         }
         for (size_t i = 0; i < g->n * LOCAL_SEARCH_SIZE_OF_NEIGHBORS; i++)
         {
-            if (g->V[i] >= g->n)
-                g->V[i] -= g->n;
+            if (g->VD[i].v >= g->n)
+                g->VD[i].v -= g->n;
         }
         if (!KNN_validate(g))
             printf("Error!\n");

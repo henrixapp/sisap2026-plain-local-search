@@ -63,6 +63,8 @@ static inline int hamming_portable(const uint64_t *restrict a, const uint64_t *r
     for (int i = 0; i < bn; i++)
         c += __builtin_popcountll(a[i] ^ b[i]);
     return c;
+    // return 255 * (c > 455) + (c <= 455) * (c > 200) * (c - 200);
+    // return c > 455 ? 255 : (c < 200 ? 0 : (c - 200));
 #endif
 }
 
