@@ -23,7 +23,7 @@ static inline void KNN_insert_safe(KNN *g, int u, int v, int d)
     int pos = (u * LOCAL_SEARCH_NEIGHBORHOOD_SIZE) + (LOCAL_SEARCH_NEIGHBORHOOD_SIZE - 1);
 
     // Stop if d is worse than the worst neighbor
-    if (g->D[pos] <= d)
+    if (u == v || g->D[pos] <= d)
         return;
     omp_set_lock(&g->L[u]);
     const int next_one = (u + 1) * LOCAL_SEARCH_NEIGHBORHOOD_SIZE;
