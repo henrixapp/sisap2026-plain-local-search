@@ -104,6 +104,9 @@ static inline void qsort_knn(const uint64_t *Matrix, int m, int n, KNN *g)
 
 int main(int argc, char **argv)
 {
+#ifdef LOCAL_SEARCH_HEAPIFY
+    printf("LOCAL_SEARCH_HEAPIFY\n");
+#endif
     printf("%s\n", argv[1]);
 
     int n = 0, m = 0;

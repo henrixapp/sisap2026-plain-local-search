@@ -72,7 +72,12 @@ void KNN_greedy_dist1_update_simple(KNN *g, int u, const uint64_t *Matrix, int m
 {
     for (int i = LOCAL_SEARCH_NEIGHBORHOOD_SIZE / 4; i >= 0; i--)
     {
+#ifdef LOCAL_SEARCH_HEAPIFY
+        int v = g->V[(u + 1) * LOCAL_SEARCH_NEIGHBORHOOD_SIZE - 1 - i];
+
+#else
         int v = g->V[u * LOCAL_SEARCH_NEIGHBORHOOD_SIZE + i];
+#endif
         for (int j = LOCAL_SEARCH_NEIGHBORHOOD_SIZE - 1; j >= 0; j--)
         {
             int w = g->V[v * LOCAL_SEARCH_NEIGHBORHOOD_SIZE + j];
