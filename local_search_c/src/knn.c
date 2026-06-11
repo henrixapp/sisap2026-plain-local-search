@@ -1,10 +1,10 @@
 #include "knn.h"
 
-#include "algorithms.h"
 #include "matrix.h"
+#include "algorithms.h"
 
-#include <assert.h>
 #include <stdlib.h>
+#include <assert.h>
 
 KNN *KNN_init(int n, int k, float ref)
 {
@@ -13,11 +13,12 @@ KNN *KNN_init(int n, int k, float ref)
     g->k = k;
     g->n = n;
     g->V = malloc(sizeof(int) * n * k);
-    g->D = malloc(sizeof(int16_t) * n * k);
+    g->D = malloc(sizeof(float) * n * k);
     g->L = malloc(sizeof(omp_lock_t) * n);
+
     for (int i = 0; i < n * k; i++)
     {
-        g->V[i] = 2*n;
+        g->V[i] = n;
         g->D[i] = ref;
     }
 
@@ -60,62 +61,60 @@ int KNN_validate(KNN *g)
             for (int k = j + 1; k < g->k; k++)
             {
                 int v = g->V[i * g->k + k];
-                if (u == v){
+                if (u == v)
                     error = 1;
-                    printf("%d %d %d %d\n",i, u,v,k);
-                }
             }
         }
     }
     return error == 0;
 }
 
-void KNN_greedy_dist1_update(KNN *g, int u, const uint64_t *Matrix, int m, int n)
+void KNN_insert_safe(KNN *g, int u, int v, int d)
 {
-    int jk =0;
-    int b_change= 1;
-    while (b_change>0){
-b_change =0;
-    for (int i = 1; i <= g->k; i++)
-    {
-        
-        int v = g->V[(u+1) * g->k - i];
-        if (v>=g->n ){
-//             omp_set_lock(&g->L[u]);
-//             if( v ==g->V[(u+1) * g->k - i]) {
-//                 g->V[(u+1) * g->k - i] -=g->n;
-//             }
-//   omp_unset_lock(&g->L[u]); 
-          continue;
-        }
-        const int v1 = (v)* g->k;
-        int brought_change = 0;
-        for (int j = 0; j < g->k; j++)
-        {
-            int w = g->V[v1  +j];
-            if(u==w ||w>=2*g->n ){continue;}
-            // if (KNN_contains_neighbor(g, u, w))
-            //     continue;
-            if (w>=g->n){
-                w -= g->n;
-            }
-            int d = hamming_portable(Matrix + u * n, Matrix + w * n, n);
-           // if (d < g->D[(u * g->k) + (g->k - 1)])
-                brought_change += KNN_insert_safe_min(g, u, w, d);
-             //if (d < g->D[(w * g->k) + (g->k - 1)])
-               brought_change +=  KNN_insert_safe_min(g, w, u, d);
-        }
-        b_change += brought_change;
-        if(brought_change==0){
-              omp_set_lock(&g->L[u]);
-            if( v ==g->V[(u+1) * g->k - i]) {
-                g->V[(u+1) * g->k - i] +=g->n;
-            }
-  omp_unset_lock(&g->L[u]); 
+    omp_set_lock(&g->L[u]);
 
+    for (int i = 0; i < g->k; i++)
+        if (g->V[u * g->k + i] == v)
+            goto end;
+
+    int pos = (u * g->k) + (g->k - 1);
+
+    // Stop if d is worse than the worst neighbor
+    if (g->D[pos] <= d)
+        goto end;
+
+    // Finding insertion point (linear scan back)
+    while (pos > (u * g->k) && g->D[pos - 1] > d)
+    {
+        g->D[pos] = g->D[pos - 1];
+        g->V[pos] = g->V[pos - 1];
+        pos--;
+    }
+
+    // Insert
+    g->D[pos] = d;
+    g->V[pos] = v;
+
+end:
+    omp_unset_lock(&g->L[u]);
+}
+
+void KNN_greedy_dist1_update_simple(KNN *g, int u, const uint64_t *Matrix, int m, int n)
+{
+    for (int i = g->k / 4; i >= 0; i--)
+    {
+        int v = g->V[u * g->k + i];
+        for (int j = g->k - 1; j >= 0; j--)
+        {
+            int w = g->V[v * g->k + j];
+
+            int d = hamming_portable(Matrix + u * n, Matrix + w * n, n);
+            if (d < g->D[(u * g->k) + (g->k - 1)])
+                KNN_insert_safe(g, u, w, d);
+            if (d < g->D[(w * g->k) + (g->k - 1)])
+                KNN_insert_safe(g, w, u, d);
         }
     }
-}
 }
 
 float KNN_compute_recall(KNN *g, const int *KNNs, int m, int n, int k)
