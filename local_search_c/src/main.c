@@ -1,6 +1,6 @@
-#include "matrix.h"
-#include "knn.h"
 #include "algorithms.h"
+#include "knn.h"
+#include "matrix.h"
 
 #include <omp.h>
 #include <stdio.h>
@@ -32,11 +32,9 @@ static void qsort_recursive_knn(const uint64_t *Matrix, int n, pair *O, int *C, 
 
                 int d = hamming_portable(Matrix + u * n, Matrix + v * n, n);
 
-                if (d < g->D[(u * g->k) + (g->k - 1)])
-                    KNN_insert_safe(g, u, v, d);
+                KNN_insert_safe(g, u, v, d);
 
-                if (d < g->D[(v * g->k) + (g->k - 1)])
-                    KNN_insert_safe(g, v, u, d);
+                KNN_insert_safe(g, v, u, d);
             }
         }
 

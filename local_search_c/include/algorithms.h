@@ -3,6 +3,7 @@
 #include "constants.h"
 #include <immintrin.h>
 #include <omp.h>
+#include <stdint.h>
 static __thread uint32_t thread_seed;
 
 // Simple, fast 32-bit PRNG (Xorshift)
