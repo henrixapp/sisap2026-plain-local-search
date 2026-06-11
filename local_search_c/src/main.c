@@ -88,9 +88,105 @@ static void qsort_recursive_knn(const uint64_t *Matrix, int n, pair *O, int *C, 
     qsort_recursive_knn(Matrix, n, O, C, p, g);
     qsort_recursive_knn(Matrix, n, O + p, C, m - p, g);
 }
+/*
+    Qsort-ish indexing:
+    - pick random pivot point
+    - partition data around median distance from pivot
+    - recurse on each half
+    - when a segment becomes small, point are likely neighbors
+*/
+static void qsort_recursive_knn_two(const uint64_t *Matrix, int n, int *O, int m, KNN *g)
+{
+    // Base case, test all pairs and insert into KNN structure
+    if (m <= 64)
+    {
+        for (int i = 0; i < m; i++)
+        {
+            int u = O[i];
+            for (int j = i + 1; j < m; j++)
+            {
+                int v = O[j];
+
+                int d = hamming_portable(Matrix + u * n, Matrix + v * n, n);
+
+                KNN_insert_safe(g, u, v, d);
+
+                KNN_insert_safe(g, v, u, d);
+            }
+        }
+
+        return;
+    }
+
+    // Random pivot element
+    int u1 = O[fast_rand() % m];
+    int u2 = O[fast_rand() % m];
+    const uint64_t *p1, *p2;
+    p1 = Matrix + u1 * n;
+    p2 = Matrix + u2 * n;
+
+    // Compute hamming distances for all points to pivot
+    // 2. In-place Partitioning
+    int left_ptr = 0;
+    int right_ptr = m - 1;
+
+    while (left_ptr <= right_ptr)
+    {
+        int dist1 = hamming_portable(Matrix + n * O[left_ptr], p1, n);
+        int dist2 = hamming_portable(Matrix + n * O[left_ptr], p2, n);
+
+        int go_left;
+        if (dist1 < dist2)
+        {
+            go_left = 1;
+        }
+        else if (dist1 > dist2)
+        {
+            go_left = 0;
+        }
+        else
+        {
+            // CRITICAL: Random tie-breaking. In discrete binary spaces,
+            // exact ties are very common. Without this, trees become highly unbalanced.
+            go_left = fast_rand() % 2;
+        }
+
+        if (go_left)
+        {
+            left_ptr++; // Keep on the left side
+        }
+        else
+        {
+            // Swap with the right pointer
+            int temp = O[left_ptr];
+            O[left_ptr] = O[right_ptr];
+            O[right_ptr] = temp;
+            right_ptr--;
+        }
+    }
+
+    // 3. Handle degenerate splits (all points fell on one side due to tie-breaking luck)
+
+    int p = left_ptr;
+    // Protect against infinite recursion
+    if (p == 0 || p == m)
+        p = m / 2;
+
+    qsort_recursive_knn_two(Matrix, n, O, p, g);
+    qsort_recursive_knn_two(Matrix, n, O + p, m - p, g);
+}
 
 static inline void qsort_knn(const uint64_t *Matrix, int m, int n, KNN *g)
 {
+#if RP_TREES_ENABLED == 1
+    int *O = malloc(sizeof(pair) * m);
+    for (int i = 0; i < m; i++)
+        O[i] = i;
+
+    qsort_recursive_knn_two(Matrix, n, O, m, g);
+
+    free(O);
+#else
     pair *O = malloc(sizeof(pair) * m);
     int *C = malloc(sizeof(int) * n * 64);
     for (int i = 0; i < m; i++)
@@ -100,6 +196,7 @@ static inline void qsort_knn(const uint64_t *Matrix, int m, int n, KNN *g)
 
     free(O);
     free(C);
+#endif
 }
 
 int main(int argc, char **argv)
@@ -143,20 +240,11 @@ int main(int argc, char **argv)
 
 #pragma omp parallel
     {
-        pair *O = malloc(sizeof(pair) * m);
-        int *C = malloc(sizeof(int) * bn * 64);
-
-        for (int i = 0; i < m; i++)
-            O[i].u = i;
-
 #pragma omp for
         for (int i = 0; i < num_qsort_tries; i++)
         {
-            qsort_recursive_knn(Matrix_bin, bn, O, C, m, g);
+            qsort_knn(Matrix_bin, m, bn, g);
         }
-
-        free(O);
-        free(C);
     }
 
     double t2 = omp_get_wtime();
