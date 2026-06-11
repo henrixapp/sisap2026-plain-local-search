@@ -36,7 +36,7 @@ static inline void prepare_random()
 
 static inline int hamming_portable(const uint64_t *a, const uint64_t *b, int n)
 {
-#ifdef LS_AVX_512_POP_COUNT
+#if LS_AVX_512_POP_COUNT == 1
     // Cast pointers to 512-bit vector types
     const __m512i *va = (const __m512i *)a;
     const __m512i *vb = (const __m512i *)b;
