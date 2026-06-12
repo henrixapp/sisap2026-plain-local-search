@@ -105,7 +105,10 @@ void KNN_greedy_dist1_update_simple(KNN *g, int u, const uint64_t *Matrix, int m
         for (int j = g->k - 1; j >= 0; j--)
         {
             int w = g->VD[v * g->k + j].v;
-
+            if (w == u)
+            {
+                continue;
+            }
             int d = hamming_portable(Matrix + u * n, Matrix + w * n, n);
             if (d < g->VD[(u * g->k) + (g->k - 1)].d)
                 KNN_insert_safe(g, u, w, d);
@@ -127,7 +130,10 @@ float KNN_compute_recall(KNN *g, const int *KNNs, int m, int n, int k)
         for (int j = 0; j < g->k; j++)
         {
             int u = g->VD[i * g->k + j].v;
-
+            if (u == i)
+            {
+                continue;
+            }
             for (int l = 0; l < k + 1; l++) // Using k + 1 since result contain self loops
             {
                 int v = KNNs[i * n + l] - 1;
