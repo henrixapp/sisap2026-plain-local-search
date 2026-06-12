@@ -1,7 +1,7 @@
 #pragma once
-
 #include <immintrin.h>
 #include <omp.h>
+#include <stdint.h>
 
 static __thread uint32_t thread_seed;
 

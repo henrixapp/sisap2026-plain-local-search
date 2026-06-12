@@ -8,13 +8,16 @@ typedef struct
     omp_lock_t lock;
     char padding[64 - sizeof(omp_lock_t)];
 } PaddedLock;
-
+typedef struct
+{
+    int v;
+    int d;
+} VDEntry;
 typedef struct KNN_struct
 {
     int n;              // Number of vertices
     int k;              // Size of neighborhoods
-    int *V;             // List of neighbors (n if empty)
-    int *D;             // Sorted hamming distances (descending)
+    VDEntry *VD;        // List of neighbors (n if empty, ascending in d)
     PaddedLock L[8192]; // Locks for mutual exclusion
 } KNN;
 

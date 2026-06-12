@@ -12,14 +12,14 @@ KNN *KNN_init(int n, int k, float ref)
 
     g->k = k;
     g->n = n;
-    g->V = malloc(sizeof(int) * n * k);
-    g->D = malloc(sizeof(float) * n * k);
-    // g->L = malloc(sizeof(omp_lock_t) * n);
+    g->VD = malloc(sizeof(VDEntry) * n * k);
+    // g->D = malloc(sizeof(float) * n * k);
+    //  g->L = malloc(sizeof(omp_lock_t) * n);
 
     for (int i = 0; i < n * k; i++)
     {
-        g->V[i] = n;
-        g->D[i] = ref;
+        g->VD[i].v = n;
+        g->VD[i].d = ref;
     }
 
     for (int i = 0; i < 8192; i++)
@@ -32,8 +32,7 @@ KNN *KNN_init(int n, int k, float ref)
 
 void KNN_free(KNN *g)
 {
-    free(g->V);
-    free(g->D);
+    free(g->VD);
 
     for (int i = 0; i < 8192; i++)
     {
@@ -54,13 +53,13 @@ int KNN_validate(KNN *g)
     {
         for (int j = 0; j < g->k; j++)
         {
-            int u = g->V[i * g->k + j];
+            int u = g->VD[i * g->k + j].v;
             if (u == g->n)
                 continue;
 
             for (int k = j + 1; k < g->k; k++)
             {
-                int v = g->V[i * g->k + k];
+                int v = g->VD[i * g->k + k].v;
                 if (u == v)
                     error = 1;
             }
@@ -74,26 +73,25 @@ void KNN_insert_safe(KNN *g, int u, int v, int d)
     omp_set_lock(&g->L[u & 8191].lock);
 
     for (int i = 0; i < g->k; i++)
-        if (g->V[u * g->k + i] == v)
+        if (g->VD[u * g->k + i].v == v)
             goto end;
 
     int pos = (u * g->k) + (g->k - 1);
 
     // Stop if d is worse than the worst neighbor
-    if (g->D[pos] <= d)
+    if (g->VD[pos].d <= d)
         goto end;
 
     // Finding insertion point (linear scan back)
-    while (pos > (u * g->k) && g->D[pos - 1] > d)
+    while (pos > (u * g->k) && g->VD[pos - 1].d > d)
     {
-        g->D[pos] = g->D[pos - 1];
-        g->V[pos] = g->V[pos - 1];
+        g->VD[pos] = g->VD[pos - 1];
         pos--;
     }
 
     // Insert
-    g->D[pos] = d;
-    g->V[pos] = v;
+    g->VD[pos].v = v;
+    g->VD[pos].d = d;
 
 end:
     omp_unset_lock(&g->L[u & 8191].lock);
@@ -103,15 +101,15 @@ void KNN_greedy_dist1_update_simple(KNN *g, int u, const uint64_t *Matrix, int m
 {
     for (int i = g->k / 4; i >= 0; i--)
     {
-        int v = g->V[u * g->k + i];
+        int v = g->VD[u * g->k + i].v;
         for (int j = g->k - 1; j >= 0; j--)
         {
-            int w = g->V[v * g->k + j];
+            int w = g->VD[v * g->k + j].v;
 
             int d = hamming_portable(Matrix + u * n, Matrix + w * n, n);
-            if (d < g->D[(u * g->k) + (g->k - 1)])
+            if (d < g->VD[(u * g->k) + (g->k - 1)].d)
                 KNN_insert_safe(g, u, w, d);
-            if (d < g->D[(w * g->k) + (g->k - 1)])
+            if (d < g->VD[(w * g->k) + (g->k - 1)].d)
                 KNN_insert_safe(g, w, u, d);
         }
     }
@@ -128,7 +126,7 @@ float KNN_compute_recall(KNN *g, const int *KNNs, int m, int n, int k)
     {
         for (int j = 0; j < g->k; j++)
         {
-            int u = g->V[i * g->k + j];
+            int u = g->VD[i * g->k + j].v;
 
             for (int l = 0; l < k + 1; l++) // Using k + 1 since result contain self loops
             {
