@@ -71,16 +71,14 @@ int KNN_validate(KNN *g)
 void KNN_insert_safe(KNN *g, int u, int v, int d)
 {
     omp_set_lock(&g->L[u & 8191].lock);
-
-    for (int i = 0; i < g->k; i++)
-        if (g->VD[u * g->k + i].v == v)
-            goto end;
-
     int pos = (u * g->k) + (g->k - 1);
 
     // Stop if d is worse than the worst neighbor
     if (g->VD[pos].d <= d)
         goto end;
+    for (int i = 0; i < g->k; i++)
+        if (g->VD[u * g->k + i].v == v)
+            goto end;
 
     // Finding insertion point (linear scan back)
     while (pos > (u * g->k) && g->VD[pos - 1].d > d)
