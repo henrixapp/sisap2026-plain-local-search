@@ -21,7 +21,7 @@ typedef struct pair_struct
 static void qsort_recursive_knn(const uint64_t *Matrix, int n, pair *O, int *C, int m, KNN *g)
 {
     // Base case, test all pairs and insert into KNN structure
-    if (m <= 64)
+    if (m <= 120)
     {
         for (int i = 0; i < m; i++)
         {
@@ -119,7 +119,7 @@ int main(int argc, char **argv)
 
     prepare_random();
 
-    KNN *g = KNN_init(m, 64, n);
+    KNN *g = KNN_init(m, 72, n);
 
     // Finished parsing and allocation
 
