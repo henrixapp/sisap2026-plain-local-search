@@ -1,10 +1,10 @@
 #include "knn.h"
 
-#include "matrix.h"
 #include "algorithms.h"
+#include "matrix.h"
 
-#include <stdlib.h>
 #include <assert.h>
+#include <stdlib.h>
 
 KNN *KNN_init(int n, int k, float ref)
 {
@@ -14,7 +14,7 @@ KNN *KNN_init(int n, int k, float ref)
     g->n = n;
     g->V = malloc(sizeof(int) * n * k);
     g->D = malloc(sizeof(float) * n * k);
-    g->L = malloc(sizeof(omp_lock_t) * n);
+    // g->L = malloc(sizeof(omp_lock_t) * n);
 
     for (int i = 0; i < n * k; i++)
     {
@@ -22,9 +22,9 @@ KNN *KNN_init(int n, int k, float ref)
         g->D[i] = ref;
     }
 
-    for (int i = 0; i < n; i++)
+    for (int i = 0; i < 8192; i++)
     {
-        omp_init_lock(&g->L[i]);
+        omp_init_lock(&g->L[i].lock);
     }
 
     return g;
@@ -35,12 +35,12 @@ void KNN_free(KNN *g)
     free(g->V);
     free(g->D);
 
-    for (int i = 0; i < g->n; i++)
+    for (int i = 0; i < 8192; i++)
     {
-        omp_destroy_lock(&g->L[i]);
+        omp_destroy_lock(&g->L[i].lock);
     }
 
-    free(g->L);
+    // free(g->L);
 
     free(g);
 }
@@ -71,7 +71,7 @@ int KNN_validate(KNN *g)
 
 void KNN_insert_safe(KNN *g, int u, int v, int d)
 {
-    omp_set_lock(&g->L[u]);
+    omp_set_lock(&g->L[u & 8191].lock);
 
     for (int i = 0; i < g->k; i++)
         if (g->V[u * g->k + i] == v)
@@ -96,7 +96,7 @@ void KNN_insert_safe(KNN *g, int u, int v, int d)
     g->V[pos] = v;
 
 end:
-    omp_unset_lock(&g->L[u]);
+    omp_unset_lock(&g->L[u & 8191].lock);
 }
 
 void KNN_greedy_dist1_update_simple(KNN *g, int u, const uint64_t *Matrix, int m, int n)

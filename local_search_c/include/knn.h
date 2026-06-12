@@ -3,13 +3,19 @@
 #include <omp.h>
 #include <stdint.h>
 
+typedef struct
+{
+    omp_lock_t lock;
+    char padding[64 - sizeof(omp_lock_t)];
+} PaddedLock;
+
 typedef struct KNN_struct
 {
-    int n;         // Number of vertices
-    int k;         // Size of neighborhoods
-    int *V;        // List of neighbors (n if empty)
-    int *D;        // Sorted hamming distances (descending)
-    omp_lock_t *L; // Locks for mutual exclusion
+    int n;              // Number of vertices
+    int k;              // Size of neighborhoods
+    int *V;             // List of neighbors (n if empty)
+    int *D;             // Sorted hamming distances (descending)
+    PaddedLock L[8192]; // Locks for mutual exclusion
 } KNN;
 
 KNN *KNN_init(int n, int k, float ref);
