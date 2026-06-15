@@ -188,7 +188,7 @@ int main(int argc, char **argv)
             float recall = KNN_compute_recall(g, KNNs, km, kn, 15);
             printf("It %d: Recall %f %lf\n", 1, recall, omp_get_wtime() - tt);
             if (recall > 0.8)
-                break;
+                goto endwork;
         }
     }
     {
@@ -207,10 +207,9 @@ int main(int argc, char **argv)
         {
             float recall = KNN_compute_recall(g, KNNs, km, kn, 15);
             printf("It %d: Recall %f %lf\n", 2, recall, omp_get_wtime() - tt);
-            if (recall > 0.8)
-                break;
         }
     }
+endwork:
     double t3 = omp_get_wtime();
 
     printf("Finished refinement in %lf\n", t3 - t2);
