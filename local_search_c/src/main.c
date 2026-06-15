@@ -5,6 +5,7 @@
 #include <omp.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 typedef struct pair_struct
 {
@@ -170,7 +171,6 @@ int main(int argc, char **argv)
 
     // 3. Local search refinement
 
-    for (int i = 0; i < 3; i++)
     {
         double tt = omp_get_wtime();
 
@@ -183,19 +183,34 @@ int main(int argc, char **argv)
                 KNN_greedy_dist1_update_simple(g, u, Matrix_bin, m, bn);
             }
         }
-
-        if (!KNN_validate(g))
-            printf("Error!\n");
-
         if (KNNs != NULL)
         {
             float recall = KNN_compute_recall(g, KNNs, km, kn, 15);
-            printf("It %d: Recall %f %lf\n", i + 1, recall, omp_get_wtime() - tt);
+            printf("It %d: Recall %f %lf\n", 1, recall, omp_get_wtime() - tt);
             if (recall > 0.8)
                 break;
         }
     }
+    {
+        double tt = omp_get_wtime();
 
+#pragma omp parallel
+        {
+
+#pragma omp for schedule(dynamic, 256)
+            for (int u = 0; u < g->n; u++)
+            {
+                KNN_greedy_dist1_update_simple_round2(g, u, Matrix_bin, m, bn);
+            }
+        }
+        if (KNNs != NULL)
+        {
+            float recall = KNN_compute_recall(g, KNNs, km, kn, 15);
+            printf("It %d: Recall %f %lf\n", 2, recall, omp_get_wtime() - tt);
+            if (recall > 0.8)
+                break;
+        }
+    }
     double t3 = omp_get_wtime();
 
     printf("Finished refinement in %lf\n", t3 - t2);

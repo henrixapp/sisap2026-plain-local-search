@@ -97,6 +97,7 @@ end:
 
 void KNN_greedy_dist1_update_simple(KNN *g, int u, const uint64_t *Matrix, int m, int n)
 {
+    const uint64_t *curr = Matrix + u * n;
     for (int i = g->k / 4; i >= 0; i--)
     {
         int v = g->VD[u * g->k + i].v;
@@ -107,7 +108,7 @@ void KNN_greedy_dist1_update_simple(KNN *g, int u, const uint64_t *Matrix, int m
             {
                 continue;
             }
-            int d = hamming_portable(Matrix + u * n, Matrix + w * n, n);
+            int d = hamming_portable(curr, Matrix + w * n, n);
             if (d < g->VD[(u * g->k) + (g->k - 1)].d)
                 KNN_insert_safe(g, u, w, d);
             if (d < g->VD[(w * g->k) + (g->k - 1)].d)
@@ -115,7 +116,27 @@ void KNN_greedy_dist1_update_simple(KNN *g, int u, const uint64_t *Matrix, int m
         }
     }
 }
-
+void KNN_greedy_dist1_update_simple_round2(KNN *g, int u, const uint64_t *Matrix, int m, int n)
+{
+    const uint64_t *curr = Matrix + u * n;
+    for (int i = g->k / 4; i >= 0; i--)
+    {
+        int v = g->VD[u * g->k + i].v;
+        for (int j = g->k - 1; j >= 0; j--)
+        {
+            int w = g->VD[v * g->k + j].v;
+            if (w == u)
+            {
+                continue;
+            }
+            int d = hamming_portable(curr, Matrix + w * n, n);
+            if (d < g->VD[(u * g->k) + (g->k - 1)].d)
+            {
+                KNN_insert_safe(g, u, w, d);
+            }
+        }
+    }
+}
 float KNN_compute_recall(KNN *g, const int *KNNs, int m, int n, int k)
 {
     int tp = 0;

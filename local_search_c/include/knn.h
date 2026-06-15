@@ -30,5 +30,6 @@ int KNN_validate(KNN *g);
 void KNN_insert_safe(KNN *g, int u, int v, int d);
 
 void KNN_greedy_dist1_update_simple(KNN *g, int u, const uint64_t *Matrix, int m, int n);
+void KNN_greedy_dist1_update_simple_round2(KNN *g, int u, const uint64_t *Matrix, int m, int n);
 
 float KNN_compute_recall(KNN *g, const int *KNNs, int m, int n, int k);
