@@ -98,7 +98,7 @@ static inline void insert_safe_rerank(KNN *g, int *N, float *Nd, int u, int v, f
 {
     omp_set_lock(&g->L[u & 8191].lock);
 
-    if (d < N[14])
+    if (d < Nd[14])
         goto end;
 
     int p = 13;
@@ -246,9 +246,6 @@ endwork:
         for (int i = 0; i < g->k; i++)
         {
             int v = g->V[u * g->k + i];
-
-            if (u < v)
-                continue;
 
             float d = compute_dot_product(Matrix, m, n, u, v);
 
