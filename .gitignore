@@ -2,3 +2,4 @@ KNN
 bin/*
 !bin/.gitignore
 venv/*
+.vscode/*

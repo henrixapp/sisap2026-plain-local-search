@@ -10,7 +10,7 @@
 int Qb = 120;
 int Qn = 64;
 int k = 72;
-int Ln = 3;
+int Ln = 1;
 
 /*
     Qsort-ish indexing:
@@ -216,7 +216,7 @@ endwork:
     int *k_NN = calloc(g->n * 15, sizeof(int));
     float *k_NN_d = calloc(g->n * 15, sizeof(float));
 
-#pragma omp parallel for
+#pragma omp parallel for schedule(dynamic, 256)
     for (int u = 0; u < g->n; u++)
     {
         int *N = k_NN + (u * 15);
