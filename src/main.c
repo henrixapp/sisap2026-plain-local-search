@@ -8,8 +8,8 @@
 #include <string.h>
 
 int Qb = 128;
-int Qn = 48;
-int k = 72;
+int Qn = 64;
+int k = 64;
 int Ln = 2;
 
 /*
@@ -100,6 +100,10 @@ static inline void insert_safe_rerank(KNN *g, int *N, float *Nd, int u, int v, f
 
     if (d < Nd[14])
         goto end;
+
+    for (int i = 0; i < 15; i++)
+        if (N[i] == v + 1)
+            goto end;
 
     int p = 13;
     while (p >= 0 && Nd[p] < d)
@@ -260,6 +264,9 @@ endwork:
     double t4 = omp_get_wtime();
 
     printf("Finished reranking in %lf\n", t4 - t3);
+
+    if (KNNs != NULL)
+        printf("Recall %f\n", KNN_compute_recall_standalone(k_NN, KNNs, km, kn, 15));
 
     matrix_store_h5_results(argv[2], m, 15, k_NN, k_NN_d, t2 - t0, t4 - t2, argv[3], Qb, Qn, k, Ln);
 

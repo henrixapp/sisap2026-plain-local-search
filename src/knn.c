@@ -111,6 +111,7 @@ void KNN_greedy_dist1_update_simple_round2(KNN *g, int u, const uint64_t *Matrix
             i++;
     }
 }
+
 float KNN_compute_recall(KNN *g, const int *KNNs, int m, int n, int k)
 {
     int tp = 0;
@@ -123,6 +124,33 @@ float KNN_compute_recall(KNN *g, const int *KNNs, int m, int n, int k)
         for (int j = 0; j < g->k; j++)
         {
             int u = g->V[i * g->k + j];
+            if (u == i)
+                continue;
+
+            for (int l = 0; l < k + 1; l++) // Using k + 1 since result contain self loops
+            {
+                int v = KNNs[i * n + l] - 1;
+                if (u == v)
+                {
+                    tp++;
+                    break;
+                }
+            }
+        }
+    }
+    return (double)tp / (double)(m * k);
+}
+
+float KNN_compute_recall_standalone(int *ANNs, const int *KNNs, int m, int n, int k)
+{
+    int tp = 0;
+
+#pragma omp parallel for reduction(+ : tp)
+    for (int i = 0; i < m; i++)
+    {
+        for (int j = 0; j < k; j++)
+        {
+            int u = ANNs[i * k + j] - 1;
             if (u == i)
                 continue;
 

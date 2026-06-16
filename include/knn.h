@@ -39,6 +39,8 @@ void KNN_greedy_dist1_update_simple_round2(KNN *g, int u, const uint64_t *Matrix
 
 float KNN_compute_recall(KNN *g, const int *KNNs, int m, int n, int k);
 
+float KNN_compute_recall_standalone(int *ANNs, const int *KNNs, int m, int n, int k);
+
 static inline void KNN_insert_unsafe(KNN *g, int u, int v, int d)
 {
     int *V = g->V + (u * g->k);
