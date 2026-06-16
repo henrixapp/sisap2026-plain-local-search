@@ -8,9 +8,9 @@
 #include <string.h>
 
 int Qb = 128;
-int Qn = 96;
-int k = 64;
-int Ln = 1;
+int Qn = 48;
+int k = 72;
+int Ln = 2;
 
 /*
     Qsort-ish indexing:
@@ -34,10 +34,10 @@ static void qsort_recursive_knn(const uint64_t *Matrix, int n, VDEntry *O, int *
 
                 int d = hamming_avx2_lut(Matrix + u * n, Matrix + v * n, n);
 
-                if (d < g->VD[(u * g->k) + (g->k - 1)].d)
+                if (d < g->D[(u * g->k) + (g->k - 1)])
                     KNN_insert_safe(g, u, v, d);
 
-                if (d < g->VD[(v * g->k) + (g->k - 1)].d)
+                if (d < g->D[(v * g->k) + (g->k - 1)])
                     KNN_insert_safe(g, v, u, d);
             }
         }
@@ -94,6 +94,27 @@ static void qsort_recursive_knn(const uint64_t *Matrix, int n, VDEntry *O, int *
     qsort_recursive_knn(Matrix, n, O + p, C, m - p, g);
 }
 
+static inline void insert_safe_rerank(KNN *g, int *N, float *Nd, int u, int v, float d)
+{
+    omp_set_lock(&g->L[u & 8191].lock);
+
+    if (d < N[14])
+        goto end;
+
+    int p = 13;
+    while (p >= 0 && Nd[p] < d)
+    {
+        N[p + 1] = N[p];
+        Nd[p + 1] = Nd[p];
+        p--;
+    }
+    N[p + 1] = v + 1;
+    Nd[p + 1] = d;
+
+end:
+    omp_unset_lock(&g->L[u & 8191].lock);
+}
+
 int main(int argc, char **argv)
 {
     printf("%s\n", argv[1]);
@@ -137,40 +158,6 @@ int main(int argc, char **argv)
     printf("1-bit quantization in %lf\n", t1 - t0);
 
     // 2. Initialize ANN with qsort idea
-
-//     for (k = 32; k <= 80; k += 8)
-//     {
-//         for (Qb = 32; Qb <= 128; Qb += 16)
-//         {
-//             KNN_free(g);
-//             g = KNN_init(m, k, n);
-//             prepare_random();
-
-//             double tt = omp_get_wtime();
-
-// #pragma omp parallel
-//             {
-//                 VDEntry *O = malloc(sizeof(VDEntry) * m);
-//                 int *C = malloc(sizeof(int) * bn * 64);
-
-//                 for (int i = 0; i < m; i++)
-//                     O[i].v = i;
-
-// #pragma omp for
-//                 for (int i = 0; i < 128; i++)
-//                 {
-//                     qsort_recursive_knn(Matrix_bin, bn, O, C, m, g);
-//                 }
-
-//                 free(O);
-//                 free(C);
-//             }
-
-//             printf("Recall %d %d %d: %f (%lf)\n", k, Qb, 128, KNN_compute_recall(g, KNNs, km, kn, 15), omp_get_wtime() - tt);
-//         }
-//     }
-
-//     return 0;
 
 #pragma omp parallel
     {
@@ -258,21 +245,18 @@ endwork:
 
         for (int i = 0; i < g->k; i++)
         {
-            int v = g->VD[u * g->k + i].v;
-            float d = compute_dot_product(Matrix, m, n, u, v);
+            int v = g->V[u * g->k + i];
 
-            if (d < Nd[14])
+            if (u < v)
                 continue;
 
-            int p = 13;
-            while (p >= 0 && Nd[p] < d)
-            {
-                N[p + 1] = N[p];
-                Nd[p + 1] = Nd[p];
-                p--;
-            }
-            N[p + 1] = v + 1;
-            Nd[p + 1] = d;
+            float d = compute_dot_product(Matrix, m, n, u, v);
+
+            if (d > Nd[14])
+                insert_safe_rerank(g, N, Nd, u, v, d);
+
+            if (d > k_NN_d[v * 15 + 14])
+                insert_safe_rerank(g, k_NN + (v * 15), k_NN_d + (v * 15), v, u, d);
         }
     }
 
