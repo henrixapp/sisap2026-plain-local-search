@@ -5,6 +5,7 @@
 #include <immintrin.h>
 #include <math.h>
 #include <string.h>
+#include <stdio.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 
@@ -239,7 +240,7 @@ void write_root_float_attr(hid_t loc_id, const char *attr_name, double value)
     H5Sclose(dataspace_id);
 }
 
-void matrix_store_h5_results(const char *Path, int m, int n, int *N, float *D, float t_build, float t_query, const char *Dataset)
+void matrix_store_h5_results(const char *Path, int m, int n, int *N, float *D, float t_build, float t_query, const char *Dataset, int p_qb, int p_qn, int p_k, int p_ln)
 {
     hid_t file_id = H5Fcreate(Path, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
     if (file_id < 0)
@@ -282,9 +283,12 @@ void matrix_store_h5_results(const char *Path, int m, int n, int *N, float *D, f
     H5Dclose(dataset_dists_id);
     H5Sclose(dataspace_dists_id);
 
+    char Params[512];
+    sprintf(Params, "Qb=%d, Qn=%d, k=%d, Ln=%d", p_qb, p_qn, p_k, p_ln);
+
     write_root_string_attr(file_id, "algo", "PlainLocalSearch");
     write_root_string_attr(file_id, "task", "task1");
-    write_root_string_attr(file_id, "params", "k=72");
+    write_root_string_attr(file_id, "params", Params);
     write_root_string_attr(file_id, "dataset", Dataset);
     write_root_float_attr(file_id, "buildtime", t_build);
     write_root_float_attr(file_id, "querytime", t_query);

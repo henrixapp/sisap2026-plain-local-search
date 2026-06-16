@@ -13,8 +13,6 @@ KNN *KNN_init(int n, int k, float ref)
     g->k = k;
     g->n = n;
     g->VD = malloc(sizeof(VDEntry) * n * k);
-    // g->D = malloc(sizeof(float) * n * k);
-    //  g->L = malloc(sizeof(omp_lock_t) * n);
 
     for (int i = 0; i < n * k; i++)
     {
@@ -38,8 +36,6 @@ void KNN_free(KNN *g)
     {
         omp_destroy_lock(&g->L[i].lock);
     }
-
-    // free(g->L);
 
     free(g);
 }
@@ -68,33 +64,6 @@ int KNN_validate(KNN *g)
     return error == 0;
 }
 
-void KNN_insert_safe(KNN *g, int u, int v, int d)
-{
-    omp_set_lock(&g->L[u & 8191].lock);
-    int pos = (u * g->k) + (g->k - 1);
-
-    // Stop if d is worse than the worst neighbor
-    if (g->VD[pos].d <= d)
-        goto end;
-    for (int i = 0; i < g->k; i++)
-        if (g->VD[u * g->k + i].v == v)
-            goto end;
-
-    // Finding insertion point (linear scan back)
-    while (pos > (u * g->k) && g->VD[pos - 1].d > d)
-    {
-        g->VD[pos] = g->VD[pos - 1];
-        pos--;
-    }
-
-    // Insert
-    g->VD[pos].v = v;
-    g->VD[pos].d = d;
-
-end:
-    omp_unset_lock(&g->L[u & 8191].lock);
-}
-
 void KNN_greedy_dist1_update_simple(KNN *g, int u, const uint64_t *Matrix, int m, int n)
 {
     const uint64_t *curr = Matrix + u * n;
@@ -104,11 +73,11 @@ void KNN_greedy_dist1_update_simple(KNN *g, int u, const uint64_t *Matrix, int m
         for (int j = g->k - 1; j >= 0; j--)
         {
             int w = g->VD[v * g->k + j].v;
-            if (w == u)
-            {
+            if (w == u || w >= g->n)
                 continue;
-            }
-            int d = hamming_portable(curr, Matrix + w * n, n);
+
+            int d = hamming_avx2_lut(curr, Matrix + w * n, n);
+
             if (d < g->VD[(u * g->k) + (g->k - 1)].d)
                 KNN_insert_safe(g, u, w, d);
             if (d < g->VD[(w * g->k) + (g->k - 1)].d)
@@ -126,14 +95,12 @@ void KNN_greedy_dist1_update_simple_round2(KNN *g, int u, const uint64_t *Matrix
         {
             int w = g->VD[v * g->k + j].v;
             if (w == u)
-            {
                 continue;
-            }
-            int d = hamming_portable(curr, Matrix + w * n, n);
+
+            int d = hamming_avx2_lut(curr, Matrix + w * n, n);
+
             if (d < g->VD[(u * g->k) + (g->k - 1)].d)
-            {
                 KNN_insert_safe(g, u, w, d);
-            }
         }
     }
 }
@@ -150,9 +117,8 @@ float KNN_compute_recall(KNN *g, const int *KNNs, int m, int n, int k)
         {
             int u = g->VD[i * g->k + j].v;
             if (u == i)
-            {
                 continue;
-            }
+
             for (int l = 0; l < k + 1; l++) // Using k + 1 since result contain self loops
             {
                 int v = KNNs[i * n + l] - 1;
