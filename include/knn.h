@@ -66,3 +66,30 @@ static inline void KNN_insert_safe(KNN *g, int u, int v, int d)
 end:
     omp_unset_lock(&g->L[u & 8191].lock);
 }
+
+static inline void KNN_insert_unsafe(KNN *g, int u, int v, int d)
+{
+    VDEntry *N = g->VD + (u * g->k);
+
+    // Stop if d is worse than the worst neighbor
+    if (N[g->k - 1].d <= d)
+        return;
+
+    int pos = -1;
+    for (int i = 0; i < g->k; i++)
+    {
+        if (N[i].v == v)
+            return;
+
+        if (N[i].d <= d)
+            pos = i;
+    }
+    pos++;
+
+    for (int i = g->k - 1; i > pos; i--)
+        N[i] = N[i - 1];
+
+    // Insert
+    N[pos].v = v;
+    N[pos].d = d;
+}

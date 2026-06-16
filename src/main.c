@@ -7,9 +7,9 @@
 #include <stdlib.h>
 #include <string.h>
 
-int Qb = 120;
-int Qn = 64;
-int k = 72;
+int Qb = 128;
+int Qn = 96;
+int k = 64;
 int Ln = 1;
 
 /*
@@ -137,6 +137,40 @@ int main(int argc, char **argv)
     printf("1-bit quantization in %lf\n", t1 - t0);
 
     // 2. Initialize ANN with qsort idea
+
+//     for (k = 32; k <= 80; k += 8)
+//     {
+//         for (Qb = 32; Qb <= 128; Qb += 16)
+//         {
+//             KNN_free(g);
+//             g = KNN_init(m, k, n);
+//             prepare_random();
+
+//             double tt = omp_get_wtime();
+
+// #pragma omp parallel
+//             {
+//                 VDEntry *O = malloc(sizeof(VDEntry) * m);
+//                 int *C = malloc(sizeof(int) * bn * 64);
+
+//                 for (int i = 0; i < m; i++)
+//                     O[i].v = i;
+
+// #pragma omp for
+//                 for (int i = 0; i < 128; i++)
+//                 {
+//                     qsort_recursive_knn(Matrix_bin, bn, O, C, m, g);
+//                 }
+
+//                 free(O);
+//                 free(C);
+//             }
+
+//             printf("Recall %d %d %d: %f (%lf)\n", k, Qb, 128, KNN_compute_recall(g, KNNs, km, kn, 15), omp_get_wtime() - tt);
+//         }
+//     }
+
+//     return 0;
 
 #pragma omp parallel
     {

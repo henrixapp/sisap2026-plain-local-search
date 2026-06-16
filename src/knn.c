@@ -67,10 +67,10 @@ int KNN_validate(KNN *g)
 void KNN_greedy_dist1_update_simple(KNN *g, int u, const uint64_t *Matrix, int m, int n)
 {
     const uint64_t *curr = Matrix + u * n;
-    for (int i = g->k / 4; i >= 0; i--)
+    for (int i = g->k / 2; i >= 0; i--)
     {
         int v = g->VD[u * g->k + i].v;
-        for (int j = g->k - 1; j >= 0; j--)
+        for (int j = g->k / 2; j >= 0; j--)
         {
             int w = g->VD[v * g->k + j].v;
             if (w == u || w >= g->n)
@@ -83,12 +83,14 @@ void KNN_greedy_dist1_update_simple(KNN *g, int u, const uint64_t *Matrix, int m
             if (d < g->VD[(w * g->k) + (g->k - 1)].d)
                 KNN_insert_safe(g, w, u, d);
         }
+        while (i < g->k / 2 && v != g->VD[u * g->k + i].v)
+            i++;
     }
 }
 void KNN_greedy_dist1_update_simple_round2(KNN *g, int u, const uint64_t *Matrix, int m, int n)
 {
     const uint64_t *curr = Matrix + u * n;
-    for (int i = g->k / 4; i >= 0; i--)
+    for (int i = 15; i >= 0; i--)
     {
         int v = g->VD[u * g->k + i].v;
         for (int j = g->k - 1; j >= 0; j--)
@@ -100,7 +102,7 @@ void KNN_greedy_dist1_update_simple_round2(KNN *g, int u, const uint64_t *Matrix
             int d = hamming_avx2_lut(curr, Matrix + w * n, n);
 
             if (d < g->VD[(u * g->k) + (g->k - 1)].d)
-                KNN_insert_safe(g, u, w, d);
+                KNN_insert_unsafe(g, u, w, d);
         }
     }
 }
