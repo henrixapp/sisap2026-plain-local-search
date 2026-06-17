@@ -9,7 +9,7 @@
 
 int Qb = 256;
 int Qn = 32;
-int k = 72;
+int k = 80;
 int Ln = 2;
 
 /*
