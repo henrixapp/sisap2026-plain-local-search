@@ -77,8 +77,8 @@ void KNN_greedy_dist1_update_simple(KNN *g, int u, const uint64_t *Matrix, int m
         for (int j = 0; j < D - i; j++)
         {
             int w = g->V[v * g->k + j];
-            // if (w == u || w >= g->n)
-            //     continue;
+            if (w == u || w >= g->n)
+                continue;
 
             int d = hamming_avx2_lut(curr, Matrix + w * n, n);
 
@@ -101,8 +101,8 @@ void KNN_greedy_dist1_update_simple_round2(KNN *g, int u, const uint64_t *Matrix
         for (int j = 0; j < D - i; j++)
         {
             int w = g->V[v * g->k + j];
-            // if (w == u)
-            //     continue;
+            if (w == u)
+                continue;
 
             int d = hamming_avx2_lut(curr, Matrix + w * n, n);
 
@@ -126,8 +126,8 @@ float KNN_compute_recall(KNN *g, const int *KNNs, int m, int n, int k)
         for (int j = 0; j < g->k; j++)
         {
             int u = g->V[i * g->k + j];
-            // if (u == i)
-            //     continue;
+            if (u == i)
+                continue;
 
             for (int l = 0; l < k + 1; l++) // Using k + 1 since result contain self loops
             {
@@ -153,8 +153,8 @@ float KNN_compute_recall_standalone(int *ANNs, const int *KNNs, int m, int n, in
         for (int j = 0; j < k; j++)
         {
             int u = ANNs[i * k + j] - 1;
-            // if (u == i)
-            //     continue;
+            if (u == i)
+                continue;
 
             for (int l = 0; l < k + 1; l++) // Using k + 1 since result contain self loops
             {
