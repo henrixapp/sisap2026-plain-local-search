@@ -9,8 +9,8 @@
 
 int Qb = 128;
 int Qn = 64;
-int k = 96;
-int Ln = 2;
+int k = 128;
+int Ln = 3;
 
 /*
     Qsort-ish indexing:
