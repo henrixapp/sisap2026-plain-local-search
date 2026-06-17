@@ -70,11 +70,11 @@ int KNN_validate(KNN *g)
 void KNN_greedy_dist1_update_simple(KNN *g, int u, const uint64_t *Matrix, int m, int n)
 {
     const uint64_t *curr = Matrix + u * n;
-    int D = g->k - 1;
+    int D = g->k / 4;
     for (int i = D; i >= 0; i--)
     {
         int v = g->V[u * g->k + i];
-        for (int j = 0; j < D - i; j++)
+        for (int j = 0; j < g->k / 2; j++)
         {
             int w = g->V[v * g->k + j];
             if (w == u || w >= g->n)
@@ -94,11 +94,11 @@ void KNN_greedy_dist1_update_simple(KNN *g, int u, const uint64_t *Matrix, int m
 void KNN_greedy_dist1_update_simple_round2(KNN *g, int u, const uint64_t *Matrix, int m, int n)
 {
     const uint64_t *curr = Matrix + u * n;
-    int D = g->k - 1;
+    int D = g->k / 4;
     for (int i = D; i >= 0; i--)
     {
         int v = g->V[u * g->k + i];
-        for (int j = 0; j < D - i; j++)
+        for (int j = 0; j < g->k / 2; j++)
         {
             int w = g->V[v * g->k + j];
             if (w == u)

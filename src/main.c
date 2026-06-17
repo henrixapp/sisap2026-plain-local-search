@@ -7,9 +7,9 @@
 #include <stdlib.h>
 #include <string.h>
 
-int Qb = 128;
+int Qb = 256;
 int Qn = 32;
-int k = 40;
+int k = 64;
 int Ln = 2;
 
 /*
