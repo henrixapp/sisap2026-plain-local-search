@@ -1,0 +1,6 @@
+KNN
+bin/*
+!bin/.gitignore
+venv/*
+.venv/*
+.vscode/*
