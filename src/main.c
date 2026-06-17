@@ -10,7 +10,7 @@
 int Qb = 264;
 int Qn = 32;
 int k = 64;
-int Ln = 3;
+int Ln = 2;
 
 /*
     Qsort-ish indexing:
@@ -195,11 +195,12 @@ int main(int argc, char **argv)
 
 #pragma omp parallel
         {
-
+            const int target = g->n / 2;
 #pragma omp for schedule(dynamic, 256)
-            for (int u = 0; u < g->n; u++)
+            for (int u = 0; u < target; u++)
             {
                 KNN_greedy_dist1_update_simple(g, u, Matrix_bin, m, bn);
+                KNN_greedy_dist1_update_simple(g, g->n - 1 - u, Matrix_bin, m, bn);
             }
         }
         if (KNNs != NULL)

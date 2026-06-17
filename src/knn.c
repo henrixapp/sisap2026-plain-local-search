@@ -74,7 +74,8 @@ void KNN_greedy_dist1_update_simple(KNN *g, int u, const uint64_t *Matrix, int m
     for (int i = D; i >= 0; i--)
     {
         int v = g->V[u * g->k + i];
-        for (int j = 0; j < D - i; j++)
+        const int target = D - i + 4;
+        for (int j = 0; j < target; j++)
         {
             int w = g->V[v * g->k + j];
             if (w == u || w >= g->n)
@@ -98,7 +99,7 @@ void KNN_greedy_dist1_update_simple_round2(KNN *g, int u, const uint64_t *Matrix
     for (int i = D; i >= 0; i--)
     {
         int v = g->V[u * g->k + i];
-        for (int j = 5 * (i + 1) < g->k ? 5 * (i + 1) : g->k - 1; j >= 0; j--)
+        for (int j = D - i; j >= 0; j--)
         {
             int w = g->V[v * g->k + j];
             if (w == u)
