@@ -3,7 +3,7 @@ SHELL = /usr/bin/env bash
 CC = h5cc
 
 CFLAGS ?= -O3 -Wall 
-override CFLAGS += -std=gnu17 -march=native -fopenmp -lm -I include
+override CFLAGS += -std=gnu17 -march=x86-64-v3 -fopenmp -lm -I include
 override LDFLAGS += -L bin/
 
 OBJ_SHARED := matrix.o knn.o
