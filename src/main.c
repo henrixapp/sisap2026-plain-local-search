@@ -8,9 +8,9 @@
 #include <string.h>
 
 int Qb = 128;
-int Qn = 64;
-int k = 128;
-int Ln = 3;
+int Qn = 32;
+int k = 40;
+int Ln = 2;
 
 /*
     Qsort-ish indexing:
