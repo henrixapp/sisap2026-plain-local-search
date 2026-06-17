@@ -7,8 +7,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-int Qb = 128;
-int Qn = 64;
+int Qb = 264;
+int Qn = 32;
 int k = 64;
 int Ln = 2;
 
@@ -19,10 +19,11 @@ int Ln = 2;
     - recurse on each half
     - when a segment becomes small, points are likely neighbors
 */
-static void qsort_recursive_knn(const uint64_t *Matrix, int n, VDEntry *O, int *C, int m, KNN *g)
+
+static void qsort_recursive_knn(const uint64_t *Matrix, int n, VDEntry *O, int *C, int m, KNN *g, int qb)
 {
     // Base case, test all pairs and insert into KNN structure
-    if (m < Qb)
+    if (m < qb)
     {
         for (int i = 0; i < m; i++)
         {
@@ -77,7 +78,7 @@ static void qsort_recursive_knn(const uint64_t *Matrix, int n, VDEntry *O, int *
     p = 0;
     for (int i = 0; i < m; i++)
     {
-        if (O[i].d > pd)
+        if (O[i].d >= pd)
         {
             VDEntry t = O[p];
             O[p] = O[i];
@@ -90,8 +91,8 @@ static void qsort_recursive_knn(const uint64_t *Matrix, int n, VDEntry *O, int *
     if (p == 0 || p == m)
         p = m / 2;
 
-    qsort_recursive_knn(Matrix, n, O, C, p, g);
-    qsort_recursive_knn(Matrix, n, O + p, C, m - p, g);
+    qsort_recursive_knn(Matrix, n, O, C, p, g, qb);
+    qsort_recursive_knn(Matrix, n, O + p, C, m - p, g, qb);
 }
 
 static inline void insert_safe_rerank(KNN *g, int *N, float *Nd, int u, int v, float d)
@@ -168,13 +169,12 @@ int main(int argc, char **argv)
         VDEntry *O = malloc(sizeof(VDEntry) * m);
         int *C = malloc(sizeof(int) * bn * 64);
 
-        for (int i = 0; i < m; i++)
-            O[i].v = i;
-
 #pragma omp for
         for (int i = 0; i < Qn; i++)
         {
-            qsort_recursive_knn(Matrix_bin, bn, O, C, m, g);
+            for (int i = 0; i < m; i++)
+                O[i].v = i;
+            qsort_recursive_knn(Matrix_bin, bn, O, C, m, g, Qb - i);
         }
 
         free(O);
@@ -233,7 +233,7 @@ int main(int argc, char **argv)
         }
     }
 
-endwork:
+endwork:;
     double t3 = omp_get_wtime();
 
     printf("Finished refinement in %lf\n", t3 - t2);
