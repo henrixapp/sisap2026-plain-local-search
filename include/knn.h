@@ -50,25 +50,24 @@ static inline void KNN_insert_unsafe(KNN *g, int u, int v, int d)
     if (D[g->k - 1] <= d)
         return;
 
-    // Duplicate check using AVX2
+    // Duplicate check and find insertion position using AVX2
     __m256i target_v = _mm256_set1_epi32(v);
+    __m256i target_d = _mm256_set1_epi32(d);
+
+    int pos = g->k;
+
     for (int i = 0; i < g->k; i += 8)
     {
         __m256i chunk_v = _mm256_load_si256((const __m256i *)&V[i]);
-        __m256i cmp = _mm256_cmpeq_epi32(chunk_v, target_v);
-        if (_mm256_movemask_epi8(cmp) != 0)
-            return;
-    }
-
-    // Find insertion position using AVX2
-    int pos = g->k;
-    __m256i target_d = _mm256_set1_epi32(d);
-    for (int i = 0; i < g->k; i += 8)
-    {
         __m256i chunk_d = _mm256_load_si256((const __m256i *)&D[i]);
+
+        __m256i cmp_v = _mm256_cmpeq_epi32(chunk_v, target_v);
+        if (_mm256_movemask_epi8(cmp_v) != 0)
+            return;
+
         // Find first element > d. Since D is sorted ascending, we look for first D[i] > d.
-        __m256i cmp = _mm256_cmpgt_epi32(chunk_d, target_d);
-        int mask = _mm256_movemask_ps(_mm256_castsi256_ps(cmp));
+        __m256i cmp_d = _mm256_cmpgt_epi32(chunk_d, target_d);
+        int mask = _mm256_movemask_ps(_mm256_castsi256_ps(cmp_d));
         if (mask != 0)
         {
             pos = i + __builtin_ctz(mask);
@@ -79,20 +78,22 @@ static inline void KNN_insert_unsafe(KNN *g, int u, int v, int d)
     if (pos < g->k)
     {
         // Shift elements
+        memmove(&V[pos + 1], &V[pos], (g->k - pos - 1) * sizeof(int));
+        memmove(&D[pos + 1], &D[pos], (g->k - pos - 1) * sizeof(int));
 
-        if (g->k - pos - 1 > 32)
-        {
-            memmove(&V[pos + 1], &V[pos], (g->k - pos - 1) * sizeof(int));
-            memmove(&D[pos + 1], &D[pos], (g->k - pos - 1) * sizeof(int));
-        }
-        else
-        {
-            for (int i = pos + 1; i < g->k; i++)
-                V[pos] = V[pos - 1];
+        // if (g->k - pos - 1 > 32)
+        // {
+        //     memmove(&V[pos + 1], &V[pos], (g->k - pos - 1) * sizeof(int));
+        //     memmove(&D[pos + 1], &D[pos], (g->k - pos - 1) * sizeof(int));
+        // }
+        // else
+        // {
+        //     for (int i = pos + 1; i < g->k; i++)
+        //         V[pos] = V[pos - 1];
 
-            for (int i = pos + 1; i < g->k; i++)
-                D[pos] = D[pos - 1];
-        }
+        //     for (int i = pos + 1; i < g->k; i++)
+        //         D[pos] = D[pos - 1];
+        // }
 
         // Insert
         V[pos] = v;
