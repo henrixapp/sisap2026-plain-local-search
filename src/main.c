@@ -10,7 +10,7 @@
 int Qb = 128;
 int Qn = 64;
 int k = 96;
-int Ln = 1;
+int Ln = 2;
 
 /*
     Qsort-ish indexing:
