@@ -12,11 +12,11 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /app
 
 # 4. Copy your local project code into the container image
-COPY . /app
+COPY entrypoint.py src bin include Makefile /app
 
 # 5. Compile your C executable (linking the static/dynamic HDF5 dependencies)
 # Using h5cc handles paths automatically, matching our previous thread
-RUN (cd /app && make)
+RUN (cd /app &&mkdir bin && make)
 
 # 6. Make sure our Python entrypoint script has executable permissions
 RUN chmod +x entrypoint.py

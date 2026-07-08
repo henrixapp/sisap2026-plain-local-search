@@ -120,8 +120,16 @@ end:
     omp_unset_lock(&g->L[u & 8191].lock);
 }
 
+int get_num_threads(void) {
+    int num_threads = 0;
+    #pragma omp parallel reduction(+:num_threads)
+    num_threads += 1;
+    return num_threads;
+}
 int main(int argc, char **argv)
 {
+printf("cores avail: %d\n",get_num_threads());
+//return 0;
     printf("%s\n", argv[1]);
 
     int n = 0, m = 0;

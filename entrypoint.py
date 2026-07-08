@@ -34,9 +34,11 @@ def main():
 
     # 5. Execute with error capturing enabled
     try:
+        my_env = os.environ.copy()
+        my_env["OMP_NUM_THREADS"] = "8"
         print("--> Launching C Binary...")
         result = subprocess.run(
-            cmd, 
+            cmd,env=my_env,
             capture_output=True,  # Captures stdout and stderr from the binary
             text=True             # Returns strings instead of raw bytes
         )
