@@ -1,4 +1,6 @@
 #include "matrix.h"
+
+#include "alloc.h"
 #include "hdf5.h"
 
 #include <stdlib.h>
@@ -27,7 +29,7 @@ uint16_t *matrix_load_h5_data(const char *Path, const char *Dataset, int *m, int
 
     *m = Dims[0], *n = Dims[1];
 
-    uint16_t *Matrix = aligned_alloc(32, sizeof(uint16_t) * *m * *n);
+    uint16_t *Matrix = alloc64(sizeof(uint16_t) * (size_t)*m * *n);
 
     if (Matrix == NULL)
     {
@@ -41,7 +43,7 @@ uint16_t *matrix_load_h5_data(const char *Path, const char *Dataset, int *m, int
     if (H5Tequal(file_type, H5T_IEEE_F32LE) > 0 || H5Tequal(file_type, H5T_NATIVE_FLOAT) > 0)
     {
         // 1. Allocate temporary buffer for standard 32-bit floats
-        float *temp_f32 = malloc(sizeof(float) * *m * *n);
+        float *temp_f32 = malloc(sizeof(float) * (size_t)*m * *n);
         if (temp_f32 == NULL)
         {
             fprintf(stderr, "Failed to allocate temporary buffer for F32 parsing\n");
@@ -54,12 +56,16 @@ uint16_t *matrix_load_h5_data(const char *Path, const char *Dataset, int *m, int
             H5Dread(dataset, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT, temp_f32);
 
             // 3. Convert elements inline to 16-bit floats using hardware intrinsics
-            // _cvtss_sh requires an integer rounding mode indicator:
-            // _MM_FROUND_TO_NEAREST_INT |_MM_FROUND_NO_EXC or simply 0
-            for (size_t i = 0; i < *m * *n; i++)
-            {
+            size_t total = (size_t)*m * *n;
+            size_t blocks = total / 8;
+
+#pragma omp parallel for
+            for (size_t b = 0; b < blocks; b++)
+                _mm_storeu_si128((__m128i *)(Matrix + b * 8),
+                                 _mm256_cvtps_ph(_mm256_loadu_ps(temp_f32 + b * 8), 0));
+
+            for (size_t i = blocks * 8; i < total; i++)
                 Matrix[i] = _cvtss_sh(temp_f32[i], 0);
-            }
 
             free(temp_f32);
         }
@@ -102,7 +108,7 @@ int *matrix_load_h5_indices(const char *Path, const char *Dataset, int *m, int *
 
     *m = Dims[0], *n = Dims[1];
 
-    int *Matrix = aligned_alloc(32, sizeof(int) * *m * *n);
+    int *Matrix = alloc64(sizeof(int) * (size_t)*m * *n);
 
     if (Matrix == NULL)
     {

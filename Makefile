@@ -6,7 +6,7 @@ CFLAGS ?= -O3 -Wall
 override CFLAGS += -std=gnu17 -march=x86-64-v3 -fopenmp -lm -I include
 override LDFLAGS += -L bin/
 
-OBJ_SHARED := matrix.o knn.o
+OBJ_SHARED := matrix.o knn.o kernels.o
 
 OBJ_KNN := main.o $(OBJ_SHARED)
 OBJ_KNN := $(addprefix bin/, $(OBJ_KNN))

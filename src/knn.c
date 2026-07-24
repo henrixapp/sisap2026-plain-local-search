@@ -1,31 +1,42 @@
 #include "knn.h"
 
 #include "algorithms.h"
+#include "alloc.h"
 #include "matrix.h"
 
 #include <assert.h>
 #include <stdlib.h>
 
-KNN *KNN_init(int n, int k, float ref)
+__thread uint32_t thread_seed;
+
+KNN *KNN_init(int n, int k, int ref)
 {
     KNN *g = malloc(sizeof(KNN));
 
-    // Pad k to multiple of 8 for AVX2 alignment
-    g->k = (k + 7) & ~7;
+    // Pad k to a multiple of 16 so the insert scan can walk V (8 lanes) and
+    // D (16 lanes) in lockstep without a tail.
+    g->k = (k + 15) & ~15;
     g->n = n;
-    g->V = aligned_alloc(32, sizeof(int) * (size_t)n * g->k);
-    g->D = aligned_alloc(32, sizeof(int) * (size_t)n * g->k);
+    g->V = alloc64(sizeof(int) * (size_t)n * g->k);
+    g->D = alloc64(sizeof(uint16_t) * (size_t)n * g->k);
+    g->W = alloc64(sizeof(uint16_t) * (size_t)n);
 
-    for (int i = 0; i < n * g->k; i++)
+    if (ref > UINT16_MAX)
+        ref = UINT16_MAX;
+
+#pragma omp parallel for
+    for (size_t i = 0; i < (size_t)n * g->k; i++)
     {
         g->V[i] = n;
-        g->D[i] = (int)ref;
+        g->D[i] = (uint16_t)ref;
     }
 
-    for (int i = 0; i < 8192; i++)
-    {
-        omp_init_lock(&g->L[i].lock);
-    }
+#pragma omp parallel for
+    for (int i = 0; i < n; i++)
+        g->W[i] = (uint16_t)ref;
+
+    for (int i = 0; i < KNN_NLOCKS * KNN_LOCK_STRIDE; i++)
+        g->L[i] = 0;
 
     return g;
 }
@@ -34,12 +45,7 @@ void KNN_free(KNN *g)
 {
     free(g->V);
     free(g->D);
-
-    for (int i = 0; i < 8192; i++)
-    {
-        omp_destroy_lock(&g->L[i].lock);
-    }
-
+    free(g->W);
     free(g);
 }
 
@@ -52,66 +58,22 @@ int KNN_validate(KNN *g)
     {
         for (int j = 0; j < g->k; j++)
         {
-            int u = g->V[i * g->k + j];
+            int u = g->V[(size_t)i * g->k + j];
             if (u == g->n)
                 continue;
 
             for (int k_idx = j + 1; k_idx < g->k; k_idx++)
             {
-                int v = g->V[i * g->k + k_idx];
+                int v = g->V[(size_t)i * g->k + k_idx];
                 if (u == v)
                     error = 1;
             }
         }
+
+        if (g->W[i] != g->D[(size_t)i * g->k + g->k - 1])
+            error = 1;
     }
     return error == 0;
-}
-
-void KNN_greedy_dist1_update_simple(KNN *g, int u, const uint64_t *Matrix, int m, int n)
-{
-    const uint64_t *curr = Matrix + u * n;
-    int D = 16;
-    for (int i = D; i >= 0; i--)
-    {
-        int v = g->V[u * g->k + i];
-        for (int j = 0; j < 32; j++)
-        {
-            int w = g->V[v * g->k + j];
-            if (w == u || w >= g->n)
-                continue;
-
-            int d = hamming_avx2_lut(curr, Matrix + w * n, n);
-
-            if (d < g->D[(u * g->k) + (g->k - 1)])
-                KNN_insert_safe(g, u, w, d);
-            if (d < g->D[(w * g->k) + (g->k - 1)])
-                KNN_insert_safe(g, w, u, d);
-        }
-        while (i <= D && v != g->V[u * g->k + i])
-            i++;
-    }
-}
-void KNN_greedy_dist1_update_simple_round2(KNN *g, int u, const uint64_t *Matrix, int m, int n)
-{
-    const uint64_t *curr = Matrix + u * n;
-    int D = 16;
-    for (int i = D; i >= 0; i--)
-    {
-        int v = g->V[u * g->k + i];
-        for (int j = 0; j < 32; j++)
-        {
-            int w = g->V[v * g->k + j];
-            if (w == u)
-                continue;
-
-            int d = hamming_avx2_lut(curr, Matrix + w * n, n);
-
-            if (d < g->D[(u * g->k) + (g->k - 1)])
-                KNN_insert_unsafe(g, u, w, d);
-        }
-        while (i <= D && v != g->V[u * g->k + i])
-            i++;
-    }
 }
 
 float KNN_compute_recall(KNN *g, const int *KNNs, int m, int n, int k)
@@ -125,13 +87,13 @@ float KNN_compute_recall(KNN *g, const int *KNNs, int m, int n, int k)
     {
         for (int j = 0; j < g->k; j++)
         {
-            int u = g->V[i * g->k + j];
+            int u = g->V[(size_t)i * g->k + j];
             if (u == i)
                 continue;
 
             for (int l = 0; l < k + 1; l++) // Using k + 1 since result contain self loops
             {
-                int v = KNNs[i * n + l] - 1;
+                int v = KNNs[(size_t)i * n + l] - 1;
                 if (u == v)
                 {
                     tp++;
@@ -140,7 +102,7 @@ float KNN_compute_recall(KNN *g, const int *KNNs, int m, int n, int k)
             }
         }
     }
-    return (double)tp / (double)(m * k);
+    return (double)tp / (double)((size_t)m * k);
 }
 
 float KNN_compute_recall_standalone(int *ANNs, const int *KNNs, int m, int n, int k)
@@ -152,13 +114,13 @@ float KNN_compute_recall_standalone(int *ANNs, const int *KNNs, int m, int n, in
     {
         for (int j = 0; j < k; j++)
         {
-            int u = ANNs[i * k + j] - 1;
+            int u = ANNs[(size_t)i * k + j] - 1;
             if (u == i)
                 continue;
 
             for (int l = 0; l < k + 1; l++) // Using k + 1 since result contain self loops
             {
-                int v = KNNs[i * n + l] - 1;
+                int v = KNNs[(size_t)i * n + l] - 1;
                 if (u == v)
                 {
                     tp++;
@@ -167,5 +129,5 @@ float KNN_compute_recall_standalone(int *ANNs, const int *KNNs, int m, int n, in
             }
         }
     }
-    return (double)tp / (double)(m * k);
+    return (double)tp / (double)((size_t)m * k);
 }

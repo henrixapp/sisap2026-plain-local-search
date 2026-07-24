@@ -4,3 +4,4 @@ bin/*
 venv/*
 .venv/*
 .vscode/*
+benchmark-dev-wikipedia-bge-m3-small.h5
