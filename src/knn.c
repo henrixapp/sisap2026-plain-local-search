@@ -26,32 +26,34 @@ KNN *KNN_init(int n, int k, float ref)
 {
     KNN *g = malloc(sizeof(KNN));
 
-    // Pad k to multiple of 8 for AVX2 alignment
-    g->k = (k + 7) & ~7;
+    // Pad k to multiple of 16 for AVX2 alignment with 16-bit ints
+    g->k = (k + 15) & ~15;
     g->n = n;
 
-    // KNN_offer_max0 packs a slot index into KNN_TAG_BITS low bits of a distance
     if (g->k > (1 << KNN_TAG_BITS))
     {
         fprintf(stderr, "k=%d exceeds the %d slots addressable by KNN_TAG_BITS\n", g->k, 1 << KNN_TAG_BITS);
         exit(1);
     }
+
     g->V = knn_alloc_huge(sizeof(int) * (size_t)n * g->k);
-    g->D = knn_alloc_huge(sizeof(int) * (size_t)n * g->k);
+    g->D = knn_alloc_huge(sizeof(int16_t) * (size_t)n * g->k);
     g->Dmax = knn_alloc_huge(sizeof(int) * (size_t)n);
+
+    int r = (int)ref;
+    if (r > 1023)
+        r = 1023;
 
 #pragma omp parallel for schedule(static)
     for (int i = 0; i < n; i++)
     {
-        // D starts in the tagged form used by KNN_offer_max0 during indexing:
-        // distance in the high bits, own slot index in the low bits.
         for (int j = 0; j < g->k; j++)
         {
             g->V[(size_t)i * g->k + j] = n;
-            g->D[(size_t)i * g->k + j] = ((int)ref << KNN_TAG_BITS) | j;
+            g->D[(size_t)i * g->k + j] = (int16_t)((r << KNN_TAG_BITS) | j);
         }
-        g->D[(size_t)i * g->k] = (int)ref << KNN_TAG_BITS;
-        g->Dmax[i] = (int)ref;
+        g->D[(size_t)i * g->k] = (int16_t)(r << KNN_TAG_BITS);
+        g->Dmax[i] = r;
     }
 
     for (int i = 0; i < 8192; i++)
@@ -104,15 +106,16 @@ void KNN_sort_lists(KNN *g)
     for (int u = 0; u < g->n; u++)
     {
         int *V = g->V + (size_t)u * k;
-        int *D = g->D + (size_t)u * k;
+        int16_t *D = g->D + (size_t)u * k;
 
         // Drop the slot tags; from here on D holds plain distances.
         for (int i = 0; i < k; i++)
-            D[i] >>= KNN_TAG_BITS;
+            D[i] = (uint16_t)D[i] >> KNN_TAG_BITS;
 
         for (int i = 1; i < k; i++)
         {
-            int dv = D[i], vv = V[i];
+            int dv = D[i];
+            int vv = V[i];
             int j = i - 1;
             while (j >= 0 && D[j] > dv)
             {
