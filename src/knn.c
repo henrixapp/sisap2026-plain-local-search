@@ -10,17 +10,15 @@
 
 void *knn_alloc_huge(size_t bytes)
 {
-    // Round up so the whole range can be backed by 2 MB pages
-    size_t rounded = (bytes + (2u << 20) - 1) & ~(size_t)((2u << 20) - 1);
-    void *p = aligned_alloc(2u << 20, rounded);
+    size_t rounded = (bytes + 63) & ~(size_t)63;
+    void *p = aligned_alloc(64, rounded);
     if (p == NULL)
     {
         fprintf(stderr, "Failed to allocate %zu bytes\n", bytes);
         exit(1);
     }
-    // Everything past the code matrix is touched at random, and 4 KB pages make
-    // that a TLB walk per access. THP is on "madvise" here, so ask for it.
-    madvise(p, rounded, MADV_HUGEPAGE);
+    if (bytes >= (2u << 20))
+        madvise(p, bytes, MADV_HUGEPAGE);
     return p;
 }
 

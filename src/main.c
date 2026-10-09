@@ -373,8 +373,6 @@ int main(int argc, char **argv)
 
     prepare_random();
 
-    KNN *g = KNN_init(m, k, n);
-
     // Finished parsing and allocation
 
     // 1. Quantization to 1 bit
@@ -468,6 +466,8 @@ int main(int argc, char **argv)
         for (int i = 0; i < m; i++)
             Scale[i] = quantize_i8_fp16_avx2(Matrix + (size_t)perm[i] * n, Matrix_i8 + (size_t)i * n, n);
     }
+    free(Matrix);
+    Matrix = NULL;
 
     double t1b = omp_get_wtime();
     printf("Reordering + rerank codes in %lf\n", t1b - t1);
@@ -490,6 +490,11 @@ int main(int argc, char **argv)
         KNNs = KP;
         eval_time += omp_get_wtime() - e0;
     }
+
+    free(iperm);
+    iperm = NULL;
+
+    KNN *g = KNN_init(m, k, n);
 
     /*
         Diagnostic: brute-force the exact top-k by hamming for a sample of points
@@ -598,6 +603,11 @@ int main(int argc, char **argv)
     printf("  (tree partitioning %lf, leaf all-pairs %lf)\n", t_part, t_leaf);
     fflush(stdout);
 
+    free(O);
+    O = NULL;
+    free(leaves);
+    leaves = NULL;
+
     // Refinement walks the lists in distance order, indexing was allowed to keep
     // them unsorted.
     KNN_sort_lists(g);
@@ -662,6 +672,13 @@ int main(int argc, char **argv)
 
     printf("Finished refinement in %lf\n", t3 - t2 - eval_time);
     fflush(stdout);
+
+    free(Matrix_bin);
+    Matrix_bin = NULL;
+    free(g->D);
+    g->D = NULL;
+    free(g->Dmax);
+    g->Dmax = NULL;
 
     // 5. Rerank the candidates with the exact (fp16) inner product
 
@@ -730,12 +747,23 @@ int main(int argc, char **argv)
     if (KNNs != NULL)
         printf("Recall %f\n", KNN_compute_recall_standalone(k_NN, KNNs, km, kn, 15));
 
+    free(Rmin);
+    Rmin = NULL;
+    free(Matrix_p);
+    Matrix_p = NULL;
+    free(Matrix_i8);
+    Matrix_i8 = NULL;
+    free(Scale);
+    Scale = NULL;
+    KNN_free(g);
+    g = NULL;
+
     // Back to the input labelling for the output file
-    int *out_NN = knn_alloc_huge(sizeof(int) * (size_t)g->n * 15);
-    float *out_D = knn_alloc_huge(sizeof(float) * (size_t)g->n * 15);
+    int *out_NN = knn_alloc_huge(sizeof(int) * (size_t)m * 15);
+    float *out_D = knn_alloc_huge(sizeof(float) * (size_t)m * 15);
 
 #pragma omp parallel for schedule(static)
-    for (int u = 0; u < g->n; u++)
+    for (int u = 0; u < m; u++)
         for (int j = 0; j < 15; j++)
         {
             int v = k_NN[(size_t)u * 15 + j];
@@ -743,12 +771,17 @@ int main(int argc, char **argv)
             out_D[(size_t)perm[u] * 15 + j] = k_NN_d[(size_t)u * 15 + j];
         }
 
+    free(k_NN);
+    k_NN = NULL;
+    free(k_NN_d);
+    k_NN_d = NULL;
+
     matrix_store_h5_results(argv[2], m, 15, out_NN, out_D, t2 - t0, t4 - t2 - eval_time, argv[3], Qb, Qn, k, Ln);
 
-    free(Matrix);
+    free(out_NN);
+    free(out_D);
+    free(perm);
     free(KNNs);
-    free(k_NN);
-    free(k_NN_d);
 
     return 0;
 }
