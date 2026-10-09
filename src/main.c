@@ -235,6 +235,42 @@ static void process_leaf(const uint64_t *M, int bn, const VDEntry *O, int len, K
     }
 }
 
+static void permute_rows_inplace(void *data, size_t row_size, const int *perm, int m)
+{
+    uint64_t *visited = calloc(((size_t)m + 63) / 64, sizeof(uint64_t));
+    void *tmp = malloc(row_size);
+    char *base = (char *)data;
+
+    for (int i = 0; i < m; i++)
+    {
+        if (visited[i >> 6] & (1ULL << (i & 63)))
+            continue;
+        if (perm[i] == i)
+        {
+            visited[i >> 6] |= (1ULL << (i & 63));
+            continue;
+        }
+
+        memcpy(tmp, base + (size_t)i * row_size, row_size);
+        int curr = i;
+        while (1)
+        {
+            visited[curr >> 6] |= (1ULL << (curr & 63));
+            int next = perm[curr];
+            if (next == i)
+            {
+                memcpy(base + (size_t)curr * row_size, tmp, row_size);
+                break;
+            }
+            memcpy(base + (size_t)curr * row_size, base + (size_t)next * row_size, row_size);
+            curr = next;
+        }
+    }
+
+    free(tmp);
+    free(visited);
+}
+
 /*
     Rmin mirrors the 15th-best similarity of every point in a compact array. The
     reverse insert has to test that value for each candidate, and reading it out
@@ -421,78 +457,74 @@ int main(int argc, char **argv)
     for (int i = 0; i < m; i++)
         O[i].v = i;
 
-    if (!env_int("KNN_NOPERM", 0))
-        build_tree(&T, m);
-
-    int *perm = knn_alloc_huge(sizeof(int) * (size_t)m);
-    int *iperm = knn_alloc_huge(sizeof(int) * (size_t)m);
-
-#pragma omp parallel for schedule(static)
-    for (int i = 0; i < m; i++)
-    {
-        perm[i] = O[i].v;
-        iperm[O[i].v] = i;
-    }
-
-    uint64_t *Matrix_bin_p = knn_alloc_huge(sizeof(uint64_t) * ((size_t)m + 1) * bn);
-
-#pragma omp parallel for schedule(static)
-    for (int i = 0; i < m; i++)
-        memcpy(Matrix_bin_p + (size_t)i * bn, Matrix_bin + (size_t)perm[i] * bn, (size_t)bn * 8);
-
-    for (int i = 0; i < bn; i++)
-        Matrix_bin_p[(size_t)m * bn + i] = 0;
-
-    free(Matrix_bin);
-    Matrix_bin = Matrix_bin_p;
-
-    // Codes for reranking, built directly in the new order.
+    int no_perm = env_int("KNN_NOPERM", 1);
+    int *perm = NULL;
+    int *iperm = NULL;
     int8_t *Matrix_i8 = NULL;
     float *Scale = NULL;
-    uint16_t *Matrix_p = NULL;
 
-    if (rerank_f16)
+    if (!no_perm)
     {
-        Matrix_p = knn_alloc_huge(sizeof(uint16_t) * (size_t)m * n);
+        build_tree(&T, m);
+
+        perm = knn_alloc_huge(sizeof(int) * (size_t)m);
+        iperm = knn_alloc_huge(sizeof(int) * (size_t)m);
+
 #pragma omp parallel for schedule(static)
         for (int i = 0; i < m; i++)
-            memcpy(Matrix_p + (size_t)i * n, Matrix + (size_t)perm[i] * n, sizeof(uint16_t) * n);
+        {
+            perm[i] = O[i].v;
+            iperm[O[i].v] = i;
+        }
+
+        permute_rows_inplace(Matrix_bin, (size_t)bn * sizeof(uint64_t), perm, m);
+
+        if (rerank_f16)
+        {
+            permute_rows_inplace(Matrix, (size_t)n * sizeof(uint16_t), perm, m);
+        }
+        else
+        {
+            Matrix_i8 = knn_alloc_huge(sizeof(int8_t) * (size_t)m * n);
+            Scale = knn_alloc_huge(sizeof(float) * (size_t)m);
+#pragma omp parallel for schedule(static)
+            for (int i = 0; i < m; i++)
+                Scale[i] = quantize_i8_fp16_avx2(Matrix + (size_t)perm[i] * n, Matrix_i8 + (size_t)i * n, n);
+            free(Matrix);
+            Matrix = NULL;
+        }
+
+        if (KNNs != NULL)
+        {
+            double e0 = omp_get_wtime();
+            permute_rows_inplace(KNNs, (size_t)kn * sizeof(int), perm, km);
+#pragma omp parallel for schedule(static)
+            for (size_t i = 0; i < (size_t)km * kn; i++)
+            {
+                int v = KNNs[i];
+                if (v > 0)
+                    KNNs[i] = iperm[v - 1] + 1;
+            }
+            eval_time += omp_get_wtime() - e0;
+        }
     }
     else
     {
-        Matrix_i8 = knn_alloc_huge(sizeof(int8_t) * (size_t)m * n);
-        Scale = knn_alloc_huge(sizeof(float) * (size_t)m);
+        if (!rerank_f16)
+        {
+            Matrix_i8 = knn_alloc_huge(sizeof(int8_t) * (size_t)m * n);
+            Scale = knn_alloc_huge(sizeof(float) * (size_t)m);
 #pragma omp parallel for schedule(static)
-        for (int i = 0; i < m; i++)
-            Scale[i] = quantize_i8_fp16_avx2(Matrix + (size_t)perm[i] * n, Matrix_i8 + (size_t)i * n, n);
+            for (int i = 0; i < m; i++)
+                Scale[i] = quantize_i8_fp16_avx2(Matrix + (size_t)i * n, Matrix_i8 + (size_t)i * n, n);
+            free(Matrix);
+            Matrix = NULL;
+        }
     }
-    free(Matrix);
-    Matrix = NULL;
 
     double t1b = omp_get_wtime();
     printf("Reordering + rerank codes in %lf\n", t1b - t1);
     fflush(stdout);
-
-    // Ground truth is only read by the recall checks; move it into the new
-    // labelling once, outside the measured sections.
-    if (KNNs != NULL)
-    {
-        double e0 = omp_get_wtime();
-        int *KP = knn_alloc_huge(sizeof(int) * (size_t)km * kn);
-#pragma omp parallel for schedule(static)
-        for (int i = 0; i < km; i++)
-            for (int l = 0; l < kn; l++)
-            {
-                int v = KNNs[(size_t)perm[i] * kn + l];
-                KP[(size_t)i * kn + l] = v > 0 ? iperm[v - 1] + 1 : v;
-            }
-        free(KNNs);
-        KNNs = KP;
-        eval_time += omp_get_wtime() - e0;
-    }
-
-    free(iperm);
-    iperm = NULL;
 
     KNN *g = KNN_init(m, k, n);
 
@@ -703,7 +735,7 @@ int main(int argc, char **argv)
         int *N = k_NN + ((size_t)u * 15);
         float *Nd = k_NN_d + ((size_t)u * 15);
         const int8_t *au = rerank_f16 ? NULL : Matrix_i8 + (size_t)u * n;
-        const uint16_t *fu = rerank_f16 ? Matrix_p + (size_t)u * n : NULL;
+        const uint16_t *fu = rerank_f16 ? Matrix + (size_t)u * n : NULL;
         const float su = rerank_f16 ? 1.0f : Scale[u];
         const int *Vu = g->V + (size_t)u * g->k;
         const int nrr = (rr > 0 && rr < g->k) ? rr : g->k;
@@ -720,14 +752,14 @@ int main(int argc, char **argv)
             if (i + 3 < nrr && Vu[i + 3] < g->n)
             {
                 int vp = Vu[i + 3];
-                const char *p = rerank_f16 ? (const char *)(Matrix_p + (size_t)vp * n)
+                const char *p = rerank_f16 ? (const char *)(Matrix + (size_t)vp * n)
                                            : (const char *)(Matrix_i8 + (size_t)vp * n);
                 size_t sz = rerank_f16 ? sizeof(uint16_t) * (size_t)n : (size_t)n;
                 for (size_t off = 0; off < sz; off += 128)
                     _mm_prefetch(p + off, _MM_HINT_T0);
             }
 
-            float d = rerank_f16 ? dot_f16_avx2(fu, Matrix_p + (size_t)v * n, n)
+            float d = rerank_f16 ? dot_f16_avx2(fu, Matrix + (size_t)v * n, n)
                                  : (float)dot_i8_avx2(au, Matrix_i8 + (size_t)v * n, n) * su * Scale[v];
 
             if (d > Nd[14])
@@ -749,8 +781,8 @@ int main(int argc, char **argv)
 
     free(Rmin);
     Rmin = NULL;
-    free(Matrix_p);
-    Matrix_p = NULL;
+    free(Matrix);
+    Matrix = NULL;
     free(Matrix_i8);
     Matrix_i8 = NULL;
     free(Scale);
@@ -759,28 +791,25 @@ int main(int argc, char **argv)
     g = NULL;
 
     // Back to the input labelling for the output file
-    int *out_NN = knn_alloc_huge(sizeof(int) * (size_t)m * 15);
-    float *out_D = knn_alloc_huge(sizeof(float) * (size_t)m * 15);
-
+    if (!no_perm)
+    {
 #pragma omp parallel for schedule(static)
-    for (int u = 0; u < m; u++)
-        for (int j = 0; j < 15; j++)
+        for (size_t i = 0; i < (size_t)m * 15; i++)
         {
-            int v = k_NN[(size_t)u * 15 + j];
-            out_NN[(size_t)perm[u] * 15 + j] = v > 0 ? perm[v - 1] + 1 : 0;
-            out_D[(size_t)perm[u] * 15 + j] = k_NN_d[(size_t)u * 15 + j];
+            int v = k_NN[i];
+            if (v > 0)
+                k_NN[i] = perm[v - 1] + 1;
         }
+        permute_rows_inplace(k_NN, 15 * sizeof(int), iperm, m);
+        permute_rows_inplace(k_NN_d, 15 * sizeof(float), iperm, m);
+    }
+
+    matrix_store_h5_results(argv[2], m, 15, k_NN, k_NN_d, t2 - t0, t4 - t2 - eval_time, argv[3], Qb, Qn, k, Ln);
 
     free(k_NN);
-    k_NN = NULL;
     free(k_NN_d);
-    k_NN_d = NULL;
-
-    matrix_store_h5_results(argv[2], m, 15, out_NN, out_D, t2 - t0, t4 - t2 - eval_time, argv[3], Qb, Qn, k, Ln);
-
-    free(out_NN);
-    free(out_D);
     free(perm);
+    free(iperm);
     free(KNNs);
 
     return 0;
