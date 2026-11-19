@@ -82,6 +82,8 @@ float KNN_compute_recall(KNN *g, const int *KNNs, int m, int n, int k)
 
     assert(g->n == m);
 
+    int limit = (k + 1 < n) ? k + 1 : n;
+
 #pragma omp parallel for reduction(+ : tp)
     for (int i = 0; i < g->n; i++)
     {
@@ -91,7 +93,7 @@ float KNN_compute_recall(KNN *g, const int *KNNs, int m, int n, int k)
             if (u == i)
                 continue;
 
-            for (int l = 0; l < k + 1; l++) // Using k + 1 since result contain self loops
+            for (int l = 0; l < limit; l++) // Using k + 1 since result contains self loops
             {
                 int v = KNNs[(size_t)i * n + l] - 1;
                 if (u == v)
@@ -109,6 +111,8 @@ float KNN_compute_recall_standalone(int *ANNs, const int *KNNs, int m, int n, in
 {
     int tp = 0;
 
+    int limit = (k + 1 < n) ? k + 1 : n;
+
 #pragma omp parallel for reduction(+ : tp)
     for (int i = 0; i < m; i++)
     {
@@ -118,7 +122,7 @@ float KNN_compute_recall_standalone(int *ANNs, const int *KNNs, int m, int n, in
             if (u == i)
                 continue;
 
-            for (int l = 0; l < k + 1; l++) // Using k + 1 since result contain self loops
+            for (int l = 0; l < limit; l++) // Using k + 1 since result contains self loops
             {
                 int v = KNNs[(size_t)i * n + l] - 1;
                 if (u == v)

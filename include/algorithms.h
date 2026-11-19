@@ -27,13 +27,13 @@ static inline void init_thread_seed(uint32_t global_seed, int thread_id)
         thread_seed = 1; // Xorshift cannot have a 0 seed
 }
 
-static inline void prepare_random()
+static inline void prepare_random(uint32_t global_seed)
 {
 #pragma omp parallel
     {
         // Each thread gets a unique starting point
         int tid = omp_get_thread_num();
-        init_thread_seed(42, tid); // 42 is your global seed
+        init_thread_seed(global_seed, tid);
     }
 }
 

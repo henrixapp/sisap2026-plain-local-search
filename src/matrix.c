@@ -14,7 +14,19 @@
 uint16_t *matrix_load_h5_data(const char *Path, const char *Dataset, int *m, int *n)
 {
     hid_t file = H5Fopen(Path, H5F_ACC_RDONLY, H5P_DEFAULT);
+    if (file < 0)
+    {
+        fprintf(stderr, "Failed to open HDF5 file: %s\n", Path);
+        return NULL;
+    }
+
     hid_t dataset = H5Dopen2(file, Dataset, H5P_DEFAULT);
+    if (dataset < 0)
+    {
+        fprintf(stderr, "Failed to open HDF5 dataset '%s' in %s\n", Dataset, Path);
+        H5Fclose(file);
+        return NULL;
+    }
 
     hid_t dataspace = H5Dget_space(dataset);
     int n_dims = H5Sget_simple_extent_ndims(dataspace);
@@ -88,7 +100,9 @@ uint16_t *matrix_load_h5_data(const char *Path, const char *Dataset, int *m, int
 int *matrix_load_h5_indices(const char *Path, const char *Dataset, int *m, int *n)
 {
     hid_t file = H5Fopen(Path, H5F_ACC_RDONLY, H5P_DEFAULT);
-    if (H5Lexists(file, Dataset, H5P_DEFAULT) == 0)
+    if (file < 0)
+        return NULL;
+    if (H5Lexists(file, Dataset, H5P_DEFAULT) <= 0)
     {
         H5Fclose(file);
         return NULL;
@@ -202,14 +216,17 @@ void write_root_float_attr(hid_t loc_id, const char *attr_name, double value)
     H5Sclose(dataspace_id);
 }
 
-void matrix_store_h5_results(const char *Path, int m, int n, int *N, float *D, float t_build, float t_query, const char *Dataset, int p_qb, int p_qn, int p_k, int p_ln)
+int matrix_store_h5_results(const char *Path, int m, int n, int *N, float *D, float t_build,
+                            float t_query, const char *Dataset, const char *Params)
 {
     hid_t file_id = H5Fcreate(Path, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
     if (file_id < 0)
     {
-        fprintf(stderr, "Error creating HDF5 file.\n");
-        return;
+        fprintf(stderr, "Error creating HDF5 file: %s\n", Path);
+        return -1;
     }
+
+    int err = 0;
 
     // 3. Define the 2D dimensions and create the DataSpaces
     hsize_t dims[2] = {m, n};
@@ -225,6 +242,7 @@ void matrix_store_h5_results(const char *Path, int m, int n, int *N, float *D, f
     if (status_knns < 0)
     {
         fprintf(stderr, "Error writing matrix data to dataset.\n");
+        err = -1;
     }
 
     H5Dclose(dataset_knns_id);
@@ -240,13 +258,11 @@ void matrix_store_h5_results(const char *Path, int m, int n, int *N, float *D, f
     if (status_dists < 0)
     {
         fprintf(stderr, "Error writing matrix data to dataset.\n");
+        err = -1;
     }
 
     H5Dclose(dataset_dists_id);
     H5Sclose(dataspace_dists_id);
-
-    char Params[512];
-    sprintf(Params, "Qb=%d, Qn=%d, k=%d, Ln=%d", p_qb, p_qn, p_k, p_ln);
 
     write_root_string_attr(file_id, "algo", "PlainLocalSearch");
     write_root_string_attr(file_id, "task", "task1");
@@ -259,5 +275,5 @@ void matrix_store_h5_results(const char *Path, int m, int n, int *N, float *D, f
 
     H5Fclose(file_id);
 
-    printf("Matrix successfully written to %s\n", Path);
+    return err;
 }

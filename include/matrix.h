@@ -113,4 +113,5 @@ dot_i8_avx512(const int8_t *a, const int8_t *b, int n)
     return total;
 }
 
-void matrix_store_h5_results(const char *Path, int m, int n, int *N, float *D, float t_build, float t_query, const char *Dataset, int p_qb, int p_qn, int p_k, int p_ln);
+int matrix_store_h5_results(const char *Path, int m, int n, int *N, float *D, float t_build,
+                            float t_query, const char *Dataset, const char *Params);
