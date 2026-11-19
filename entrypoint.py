@@ -29,7 +29,11 @@ def main():
         data = json.load(file)
         dataset = data["dataset_name"]
 
-    cmd = ["/app/KNN", input_file, "-o", output_file, "-d", dataset, *extra_args]
+    binary = "/app/KNN"
+    if not os.path.exists(binary):
+        binary = os.path.join(os.path.dirname(os.path.abspath(__file__)), "KNN")
+
+    cmd = [binary, input_file, "-o", output_file, "-d", dataset, *extra_args]
 
     try:
         print(f"--> Launching C Binary: {' '.join(cmd)}")

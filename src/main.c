@@ -336,6 +336,11 @@ int main(int argc, char **argv)
 
     int kn = 0, km = 0;
     int *KNNs = matrix_load_h5_indices(cfg.input_path, cfg.gt_key, &km, &kn);
+    if (KNNs != NULL && km != m)
+    {
+        free(KNNs);
+        KNNs = NULL;
+    }
 
     LOG("%d %d\n", n, m);
     if (KNNs != NULL)
