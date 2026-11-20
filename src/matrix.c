@@ -102,7 +102,15 @@ int *matrix_load_h5_indices(const char *Path, const char *Dataset, int *m, int *
     hid_t file = H5Fopen(Path, H5F_ACC_RDONLY, H5P_DEFAULT);
     if (file < 0)
         return NULL;
-    if (H5Lexists(file, Dataset, H5P_DEFAULT) <= 0)
+
+    htri_t exists = 0;
+    H5E_BEGIN_TRY
+    {
+        exists = H5Lexists(file, Dataset, H5P_DEFAULT);
+    }
+    H5E_END_TRY;
+
+    if (exists <= 0)
     {
         H5Fclose(file);
         return NULL;
